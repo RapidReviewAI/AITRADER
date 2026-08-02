@@ -388,24 +388,19 @@ def run_single_scan_pass(passed_api_key=None):
             header += "\nMARKET_TICKER_DATA:\n"
             prompt = header + "\n".join(batch_payload)
             
-            log_bot_event(f"🧠 Querying Gemini API (gemini-1.5-flash | Attitude: {attitude} | Strategy: {strategy})...")
+            log_bot_event(f"🧠 Querying Gemini API (gemini-2.5-flash | Attitude: {attitude} | Strategy: {strategy})...")
             max_retries = 3
             response = None
             for attempt in range(max_retries):
                 try:
-                    import google.generativeai as legacy_genai
-                    legacy_genai.configure(api_key=str(api_key).strip())
-                    g_model = legacy_genai.GenerativeModel(
-                        model_name="gemini-1.5-flash",
-                        system_instruction=SYSTEM_INSTRUCTIONS
-                    )
-                    response = g_model.generate_content(
-                        prompt,
-                        generation_config={
-                            "response_mime_type": "application/json",
-                            "temperature": 0.1,
-                            "max_output_tokens": 4096
-                        }
+                    response = client.models.generate_content(
+                        model="gemini-2.5-flash",
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTIONS,
+                            temperature=0.1,
+                            max_output_tokens=4096
+                        )
                     )
                     if response and getattr(response, "text", None):
                         break
