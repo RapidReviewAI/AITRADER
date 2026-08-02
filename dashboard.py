@@ -526,9 +526,21 @@ def render_live_dashboard():
         bot_logs = portfolio.get("bot_logs", [])
 
         s_col1, s_col2, s_col3 = st.columns(3)
-        s_col1.metric("Engine Health", "🟢 ONLINE (Auto-Threaded)", "60s Scan Interval")
-        s_col2.metric("Last Completed Scan", last_scan)
-        s_col3.metric("Recent Activity Events", len(bot_logs))
+        with s_col1:
+            with st.container(border=True):
+                st.caption("ENGINE HEALTH")
+                st.markdown("### 🟢 ONLINE")
+                st.caption("Auto-Threaded (60s Interval)")
+        with s_col2:
+            with st.container(border=True):
+                st.caption("LAST COMPLETED SCAN")
+                st.markdown(f"### {last_scan.split()[-1] if ' ' in last_scan else last_scan}")
+                st.caption(f"Date: {last_scan.split()[0] if ' ' in last_scan else 'Today'}")
+        with s_col3:
+            with st.container(border=True):
+                st.caption("RECENT ACTIVITY EVENTS")
+                st.markdown(f"### {len(bot_logs)} Events")
+                st.caption("Log Retention: 50 Entries")
 
         st.markdown("### 🖥️ Real-Time Engine Operations Console")
         if bot_logs:
