@@ -28,6 +28,9 @@ st.set_page_config(
     layout="wide"
 )
 
+# Auto-refresh UI every 15s to stream backend scan results live
+st.markdown('<meta http-equiv="refresh" content="15">', unsafe_allow_html=True)
+
 st.markdown("""
     <style>
     .main {
