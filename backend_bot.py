@@ -30,7 +30,7 @@ try:
 except Exception as _e:
     client = None
 
-MODEL_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"]
+MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
 
 # Top 20 High-Volume Crypto Assets Watchlist
@@ -452,10 +452,8 @@ def run_single_scan_pass(passed_api_key=None):
 
                 try:
                     signals = json.loads(cleaned_text)
-                except json.JSONDecodeError as j_err:
-                    log_bot_event(f"⚠️ JSON Decode Error from AI output: {j_err}. Attempting auto-repair...")
+                except json.JSONDecodeError:
                     repaired_text = cleaned_text
-                    # Find last valid closing bracket of an array item
                     last_complete_obj = repaired_text.rfind("}")
                     if last_complete_obj != -1:
                         repaired_text = repaired_text[:last_complete_obj+1]
@@ -463,9 +461,7 @@ def run_single_scan_pass(passed_api_key=None):
                             repaired_text += "]"
                         try:
                             signals = json.loads(repaired_text)
-                            log_bot_event("🔧 Auto-repaired JSON structure from AI output.")
-                        except Exception as rep_err:
-                            log_bot_event(f"❌ Auto-repair failed ({rep_err}). Skipping corrupted payload.")
+                        except Exception:
                             signals = None
                     else:
                         signals = None
