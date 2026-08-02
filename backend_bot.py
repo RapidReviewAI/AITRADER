@@ -315,7 +315,10 @@ def run_single_scan_pass(passed_api_key=None):
         portfolio["bot_logs"] = []
 
     def log_bot_event(msg):
-        print(msg)
+        try:
+            print(msg)
+        except UnicodeEncodeError:
+            print(msg.encode('ascii', errors='replace').decode('ascii'))
         portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
         if len(portfolio["bot_logs"]) > 50:
             portfolio["bot_logs"] = portfolio["bot_logs"][:50]
