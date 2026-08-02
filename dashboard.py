@@ -9,16 +9,22 @@ from datetime import datetime
 import threading
 import time
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(BASE_DIR, "portfolio_state.json")
+
 # Auto-start backend bot in a background thread if running on Streamlit Cloud
 def start_background_bot_thread():
     try:
         import backend_bot
         ui_key = None
-        if hasattr(st, "secrets"):
-            if "GEMINI_API_KEY" in st.secrets:
-                ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-            elif "gemini_api_key" in st.secrets:
-                ui_key = str(st.secrets["gemini_api_key"]).strip()
+        try:
+            if hasattr(st, "secrets"):
+                if "GEMINI_API_KEY" in st.secrets:
+                    ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                elif "gemini_api_key" in st.secrets:
+                    ui_key = str(st.secrets["gemini_api_key"]).strip()
+        except Exception:
+            ui_key = None
         
         if not ui_key:
             ui_key = os.getenv("GEMINI_API_KEY") or os.getenv("gemini_api_key")
@@ -30,8 +36,8 @@ def start_background_bot_thread():
             st.session_state["bot_thread_started"] = True
         
         # Fallback check: if last scan is missing or older than 90s, launch non-blocking scan thread
-        if os.path.exists("portfolio_state.json"):
-            with open("portfolio_state.json", "r", encoding="utf-8") as f:
+        if os.path.exists(STATE_FILE):
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 last_scan = data.get("last_scan_time")
                 need_sync = True
@@ -143,72 +149,6 @@ def fetch_binance_candlesticks(symbol):
         print(f"⚠️ Error fetching candlestick data for {symbol}: {e}")
     return pd.DataFrame()
 
-def manage_active_positions_dashboard(portfolio):
-    """Instantly checks if any open position reached TP/SL during UI resync and executes exit."""
-    active_positions = portfolio.get("active_positions", [])
-    if not active_positions:
-        return False
-        
-    market_prices = fetch_all_market_prices()
-    remaining_positions = []
-    has_closed = False
-
-    for pos in active_positions:
-        sym = pos["symbol"]
-        current_price = market_prices.get(sym)
-        if current_price is None:
-            remaining_positions.append(pos)
-            continue
-
-        tp = pos.get("take_profit")
-        sl = pos.get("stop_loss")
-        
-        close_reason = None
-        if tp and current_price >= tp:
-            close_reason = "TAKE_PROFIT"
-        elif sl and current_price <= sl:
-            close_reason = "STOP_LOSS"
-
-        if close_reason:
-            has_closed = True
-            alloc = pos["allocated_amount"]
-            entry = pos["entry_price"]
-            qty = alloc / entry if entry > 0 else 0
-            exit_value = qty * current_price
-            pnl = exit_value - alloc
-            pnl_pct = (pnl / alloc) * 100 if alloc > 0 else 0
-
-            portfolio["cash_balance"] += exit_value
-            portfolio["invested_amount"] = max(portfolio.get("invested_amount", 0) - alloc, 0)
-
-            closed_record = {
-                "symbol": sym,
-                "entry_price": entry,
-                "exit_price": current_price,
-                "allocated_amount": alloc,
-                "exit_value": exit_value,
-                "pnl": pnl,
-                "pnl_pct": pnl_pct,
-                "close_reason": close_reason,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            if "closed_trades" not in portfolio:
-                portfolio["closed_trades"] = []
-            portfolio["closed_trades"].insert(0, closed_record)
-        else:
-            remaining_positions.append(pos)
-    
-    if has_closed:
-        portfolio["active_positions"] = remaining_positions
-        temp_file = f"{STATE_FILE}.tmp"
-        try:
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(portfolio, f, indent=4)
-            os.replace(temp_file, STATE_FILE)
-        except Exception:
-            pass
-    return has_closed
-
 def load_portfolio():
     default_state = {
         "cash_balance": 10000.00,
@@ -225,7 +165,6 @@ def load_portfolio():
                 for key, val in default_state.items():
                     if key not in data:
                         data[key] = val
-                manage_active_positions_dashboard(data)
                 return data
         except Exception:
             return default_state
@@ -233,8 +172,6 @@ def load_portfolio():
 
 def render_live_dashboard():
     portfolio = load_portfolio()
-    # Ensure any pending exit triggers (TP/SL) update portfolio state before rendering metrics
-    manage_active_positions_dashboard(portfolio)
     market_prices = fetch_all_market_prices()
 
     col_title, col_btn = st.columns([0.65, 0.35])
@@ -675,10 +612,7 @@ def render_live_dashboard():
                     }}, 1000);
                 </script>
                 """
-                if hasattr(st, "html"):
-                    st.html(countdown_html)
-                else:
-                    st.components.v1.html(countdown_html, height=40)
+                st.components.v1.html(countdown_html, height=45)
                 st.caption("Cycle Interval: 60s")
         with s_col4:
             with st.container(border=True):

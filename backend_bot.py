@@ -30,7 +30,7 @@ try:
 except Exception as _e:
     client = None
 
-MODEL_FALLBACKS = ["gemini-1.5-flash", "gemini-1.5-pro"]
+MODEL_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
 
 # Top 20 High-Volume Crypto Assets Watchlist
@@ -41,8 +41,9 @@ WATCHLIST = [
     "RENDERUSDT", "FETUSDT", "PEPEUSDT", "SHIBUSDT", "ATOMUSDT"
 ]
 
-STATE_FILE = "portfolio_state.json"
-ERROR_LOG_FILE = "error_log.txt"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATE_FILE = os.path.join(BASE_DIR, "portfolio_state.json")
+ERROR_LOG_FILE = os.path.join(BASE_DIR, "error_log.txt")
 SCAN_INTERVAL_SECONDS = 60  # 60-second scan interval backed by multi-model failover rotation
 
 def log_error_to_file(error_msg):
@@ -388,13 +389,13 @@ def run_single_scan_pass(passed_api_key=None):
             header += "\nMARKET_TICKER_DATA:\n"
             prompt = header + "\n".join(batch_payload)
             
-            log_bot_event(f"🧠 Querying Gemini API (gemini-2.5-flash | Attitude: {attitude} | Strategy: {strategy})...")
-            max_retries = 3
+            log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL} | Attitude: {attitude} | Strategy: {strategy})...")
+            max_retries = 4
             response = None
             for attempt in range(max_retries):
                 try:
                     response = client.models.generate_content(
-                        model="gemini-2.5-flash",
+                        model=ACTIVE_MODEL,
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTIONS,
@@ -407,8 +408,12 @@ def run_single_scan_pass(passed_api_key=None):
                         break
                 except Exception as model_err:
                     err_str = str(model_err)
-                    log_bot_event(f"⚠️ Gemini API Notice: {err_str[:120]}")
-                    time.sleep(3)
+                    # Rotate to next fallback model on 404 or 429 quota limits
+                    next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
+                    prev_model = ACTIVE_MODEL
+                    ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
+                    log_bot_event(f"⚠️ API issue with {prev_model}. Failover switching to {ACTIVE_MODEL} (attempt {attempt+1}/{max_retries})...")
+                    time.sleep(4)
 
             if response is None or not getattr(response, 'text', None):
                 log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
