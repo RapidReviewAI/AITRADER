@@ -316,18 +316,19 @@ def main():
                             wait_sec = (attempt + 1) * 10
                             next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
                             ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
-                            print(f"⚠️ Quota rate limit hit (429). Switching model to {ACTIVE_MODEL} & retrying in {wait_sec}s (Attempt {attempt+1}/{max_retries})...")
+                            log_bot_event(f"⚠️ Quota rate limit (429). Switching to {ACTIVE_MODEL} & retrying in {wait_sec}s...")
                             time.sleep(wait_sec)
                         elif "404" in err_str or "NOT_FOUND" in err_str:
-                            print(f"⚠️ {ACTIVE_MODEL} returned 404. Auto-discovering fallback model...")
+                            log_bot_event(f"⚠️ Model {ACTIVE_MODEL} 404 Not Found. Auto-discovering fallback...")
                             ACTIVE_MODEL = get_valid_fallback_model(client)
                             time.sleep(5)
                         else:
+                            log_bot_event(f"❌ Gemini API Error: {err_str[:120]}")
                             raise model_err
 
                 
                 if response is None or not getattr(response, 'text', None):
-                    print("⚠️ No valid response from Gemini after retries. Skipping cycle.")
+                    log_bot_event("⚠️ No valid response from Gemini after retries. Skipping cycle.")
                 else:
                     raw_text = response.text.strip()
                     # Clean markdown codeblocks if present

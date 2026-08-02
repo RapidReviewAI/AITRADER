@@ -614,6 +614,17 @@ def render_live_dashboard():
                 st.markdown(f"### {len(bot_logs)} Events")
                 st.caption("Retention: 50 Entries")
 
+        # Filter logs for errors and warnings
+        error_logs = [log for log in bot_logs if ("❌" in log or "⚠️" in log or "Error" in log or "429" in log or "404" in log)]
+
+        if error_logs:
+            st.markdown("### 🚨 Backend Exception & Error Alerts")
+            for err_item in error_logs[:5]:
+                if "❌" in err_item or "Error" in err_item:
+                    st.error(err_item)
+                else:
+                    st.warning(err_item)
+
         st.markdown("### 🖥️ Real-Time Engine Operations Console")
         if bot_logs:
             log_box_content = "\n".join(bot_logs)
