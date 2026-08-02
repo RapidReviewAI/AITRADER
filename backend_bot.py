@@ -217,10 +217,14 @@ def manage_active_positions(portfolio):
 
     for pos in active_positions:
         sym = pos["symbol"]
-        current_price = price_map.get(sym)
-        if current_price is None:
-            remaining_positions.append(pos)
-            continue
+        entry = float(pos.get("entry_price", 1.0))
+        raw_price = price_map.get(sym)
+        
+        # Safeguard fallback to entry_price if current price invalid or experiencing extreme abnormal tick variance (>50%)
+        if raw_price is None or raw_price <= 0 or abs(raw_price - entry) / entry > 0.5:
+            current_price = entry
+        else:
+            current_price = raw_price
 
         tp = pos.get("take_profit")
         sl = pos.get("stop_loss")
@@ -232,21 +236,21 @@ def manage_active_positions(portfolio):
             close_reason = "STOP_LOSS"
 
         if close_reason:
-            alloc = pos["allocated_amount"]
-            entry = pos["entry_price"]
-            qty = alloc / entry
+            alloc = float(pos.get("allocated_amount", 0.0))
+            qty = float(pos.get("quantity")) if pos.get("quantity") is not None else (alloc / entry if entry > 0 else 0.0)
             exit_value = qty * current_price
             pnl = exit_value - alloc
-            pnl_pct = (pnl / alloc) * 100
+            pnl_pct = (pnl / alloc) * 100 if alloc > 0 else 0.0
 
             portfolio["cash_balance"] += exit_value
-            portfolio["invested_amount"] -= alloc
+            portfolio["invested_amount"] = max(0.0, portfolio.get("invested_amount", 0.0) - alloc)
 
             closed_record = {
                 "symbol": sym,
                 "entry_price": entry,
                 "exit_price": current_price,
                 "allocated_amount": alloc,
+                "quantity": qty,
                 "exit_value": exit_value,
                 "pnl": pnl,
                 "pnl_pct": pnl_pct,
@@ -265,8 +269,17 @@ def manage_active_positions(portfolio):
 def update_equity_snapshot(portfolio, live_prices):
     active_val = 0.0
     for pos in portfolio.get("active_positions", []):
-        cur_p = live_prices.get(pos["symbol"], pos.get("entry_price", 1.0))
-        qty = pos.get("allocated_amount", 0.0) / pos.get("entry_price", 1.0)
+        entry_p = float(pos.get("entry_price", 1.0))
+        raw_p = live_prices.get(pos["symbol"])
+        
+        # Valuation safeguard: fallback to entry_price if current price invalid or >50% tick deviation
+        if raw_p is None or raw_p <= 0 or abs(raw_p - entry_p) / entry_p > 0.5:
+            cur_p = entry_p
+        else:
+            cur_p = raw_p
+
+        alloc = float(pos.get("allocated_amount", 0.0))
+        qty = float(pos.get("quantity")) if pos.get("quantity") is not None else (alloc / entry_p if entry_p > 0 else 0.0)
         active_val += qty * cur_p
     
     total_eq = portfolio.get("cash_balance", 10000.0) + active_val
@@ -519,6 +532,7 @@ def run_single_scan_pass(passed_api_key=None):
                                 alloc = min(suggested_alloc, u_max_alloc, user_p["cash_balance"])
 
                                 if entry_pr > 0 and alloc >= 100.0:
+                                    qty = alloc / entry_pr
                                     take_val = float(trade.get("take_profit") or (entry_pr * (1 + u_tp_pct)))
                                     stop_val = float(trade.get("stop_loss") or (entry_pr * (1 - u_sl_pct)))
 
@@ -531,6 +545,7 @@ def run_single_scan_pass(passed_api_key=None):
                                         "symbol": sym,
                                         "entry_price": entry_pr,
                                         "allocated_amount": alloc,
+                                        "quantity": qty,
                                         "stop_loss": stop_val,
                                         "take_profit": take_val,
                                         "risk_reward": trade.get("risk_reward_ratio", "1:2"),
