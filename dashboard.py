@@ -347,6 +347,7 @@ def render_sticky_dual_ticker_header(market_data, watchlist):
     """
     with st.container():
         st.markdown(sticky_header_html, unsafe_allow_html=True)
+    return None
 
 @st.cache_data(ttl=5)
 def fetch_all_market_prices():
