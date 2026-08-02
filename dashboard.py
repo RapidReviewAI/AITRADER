@@ -11,14 +11,15 @@ import time
 
 # Auto-start backend bot in a background thread if running on Streamlit Cloud
 def start_background_bot_thread():
-    if not st.session_state.get("bot_thread_started"):
-        try:
-            import backend_bot
-            t = threading.Thread(target=backend_bot.main, daemon=True)
+    try:
+        import backend_bot
+        existing_thread = next((t for t in threading.enumerate() if t.name == "ChartPulseBackendThread"), None)
+        if existing_thread is None or not existing_thread.is_alive():
+            t = threading.Thread(target=backend_bot.main, daemon=True, name="ChartPulseBackendThread")
             t.start()
             st.session_state["bot_thread_started"] = True
-        except Exception as e:
-            pass
+    except Exception:
+        pass
 
 start_background_bot_thread()
 
@@ -582,12 +583,28 @@ def render_live_dashboard():
             except Exception:
                 pass
 
+        # Calculate engine status based on last scan freshness
+        import time as _time
+        is_engine_active = False
+        if last_scan != "N/A":
+            try:
+                last_dt = datetime.strptime(last_scan, "%Y-%m-%d %H:%M:%S")
+                elapsed_since_scan = (_time.time() - last_dt.timestamp())
+                if elapsed_since_scan <= 120:
+                    is_engine_active = True
+            except Exception:
+                is_engine_active = False
+
         s_col1, s_col2, s_col3, s_col4 = st.columns(4)
         with s_col1:
             with st.container(border=True):
                 st.caption("ENGINE HEALTH")
-                st.markdown("### 🟢 ONLINE")
-                st.caption("Auto-Threaded")
+                if is_engine_active:
+                    st.markdown("### 🟢 ONLINE")
+                    st.caption("Active Scanner Thread")
+                else:
+                    st.markdown("### 🟡 IDLE / RESTARTING")
+                    st.caption("Auto-Healing Scan Thread")
         with s_col2:
             with st.container(border=True):
                 st.caption("LAST SCAN TIME")

@@ -86,59 +86,72 @@ def save_portfolio(state):
                 pass
 
 def fetch_binance_klines(symbol):
-    """Fetches last 30 5m candles and calculates EMA, RSI, & Volume metrics."""
+    """Fetches last 30 5m candles and calculates EMA, RSI, & Volume metrics with multi-domain failover."""
+    endpoints = [
+        f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval=5m&limit=30",
+        f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit=30",
+        f"https://api1.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit=30"
+    ]
+    data = None
+    for url in endpoints:
+        try:
+            res = requests.get(url, timeout=4)
+            if res.status_code == 200:
+                json_res = res.json()
+                if isinstance(json_res, list) and len(json_res) >= 15:
+                    data = json_res
+                    break
+        except Exception:
+            continue
+
+    if not data:
+        return None
+
     try:
-        url = f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval=5m&limit=30"
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            data = res.json()
-            if not data or len(data) < 15:
-                return None
-            
-            closes = [float(c[4]) for c in data]
-            highs = [float(c[2]) for c in data]
-            lows = [float(c[3]) for c in data]
-            volumes = [float(c[5]) for c in data]
-            
-            cur_price = closes[-1]
-            
-            # Simple EMA 9 calculation
-            ema9 = cur_price
-            k9 = 2 / (9 + 1)
-            for price in closes[-9:]:
-                ema9 = (price * k9) + (ema9 * (1 - k9))
+        closes = [float(c[4]) for c in data]
+        highs = [float(c[2]) for c in data]
+        lows = [float(c[3]) for c in data]
+        volumes = [float(c[5]) for c in data]
+        
+        cur_price = closes[-1]
+        
+        # Simple EMA 9 calculation
+        ema9 = cur_price
+        k9 = 2 / (9 + 1)
+        for price in closes[-9:]:
+            ema9 = (price * k9) + (ema9 * (1 - k9))
 
-            # Simple RSI 14 calculation
-            gains, losses = [], []
-            for i in range(1, len(closes)):
-                diff = closes[i] - closes[i-1]
-                if diff > 0:
-                    gains.append(diff)
-                    losses.append(0)
-                else:
-                    gains.append(abs(diff))
-                    losses.append(abs(diff)) if diff < 0 else losses.append(0)
-            
-            avg_gain = sum(gains[-14:]) / 14 if gains else 0.0001
-            avg_loss = sum(losses[-14:]) / 14 if losses else 0.0001
-            rs = avg_gain / max(avg_loss, 0.00001)
-            rsi = 100 - (100 / (1 + rs))
+        # Simple RSI 14 calculation
+        gains, losses = [], []
+        for i in range(1, len(closes)):
+            diff = closes[i] - closes[i-1]
+            if diff > 0:
+                gains.append(diff)
+                losses.append(0)
+            else:
+                gains.append(abs(diff))
+                losses.append(abs(diff)) if diff < 0 else losses.append(0)
+        
+        avg_gain = sum(gains[-14:]) / 14 if gains else 0.0001
+        avg_loss = sum(losses[-14:]) / 14 if losses else 0.0001
+        rs = avg_gain / max(avg_loss, 0.00001)
+        rsi = 100 - (100 / (1 + rs))
 
-            avg_vol = sum(volumes[-10:]) / 10 if len(volumes) >= 10 else volumes[-1]
-            vol_ratio = volumes[-1] / max(avg_vol, 0.0001)
+        avg_vol = sum(volumes[-10:]) / 10 if len(volumes) >= 10 else volumes[-1]
+        vol_ratio = volumes[-1] / max(avg_vol, 0.0001)
 
-            return {
-                "price": cur_price,
-                "high_24h": max(highs),
-                "low_24h": min(lows),
-                "ema9": round(ema9, 4),
-                "rsi14": round(rsi, 2),
-                "vol_ratio": round(vol_ratio, 2),
-                "raw_candles_summary": f"{symbol}:{cur_price:.2f}|RSI:{rsi:.1f}|EMA:{ema9:.2f}|V:{vol_ratio:.1f}x"
-            }
+        return {
+            "price": cur_price,
+            "high_24h": max(highs),
+            "low_24h": min(lows),
+            "ema9": round(ema9, 4),
+            "rsi14": round(rsi, 2),
+            "vol_ratio": round(vol_ratio, 2),
+            "raw_candles_summary": f"{symbol}:{cur_price:.2f}|RSI:{rsi:.1f}|EMA:{ema9:.2f}|V:{vol_ratio:.1f}x"
+        }
     except Exception as e:
-        print(f"⚠️ Binance API error on {symbol}: {e}")
-    return None
+        print(f"⚠️ Market indicator processing error on {symbol}: {e}")
+        return None
 
 SYSTEM_INSTRUCTIONS = """
 Role: Master Crypto Quantitative Analyst & High-Conviction Scalper.
@@ -268,6 +281,7 @@ def run_single_scan_pass():
         portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
         if len(portfolio["bot_logs"]) > 50:
             portfolio["bot_logs"] = portfolio["bot_logs"][:50]
+        save_portfolio(portfolio)
 
     log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL}")
 
