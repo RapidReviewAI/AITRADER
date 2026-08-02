@@ -30,7 +30,7 @@ try:
 except Exception as _e:
     client = None
 
-MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+MODEL_FALLBACKS = ["gemini-1.5-flash", "gemini-1.5-pro"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
 
 # Top 20 High-Volume Crypto Assets Watchlist
@@ -419,16 +419,15 @@ def run_single_scan_pass(passed_api_key=None):
                 except Exception as model_err:
                     err_str = str(model_err)
                     if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                        wait_sec = (attempt + 1) * 10
+                        wait_sec = 5
                         next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
                         ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
                         log_bot_event(f"⚠️ Quota rate limit (429). Switching to {ACTIVE_MODEL} & retrying in {wait_sec}s...")
                         time.sleep(wait_sec)
                     elif "404" in err_str or "NOT_FOUND" in err_str:
-                        next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
-                        ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
-                        log_bot_event(f"⚠️ Model 404 Not Found. Auto-switching to fallback model {ACTIVE_MODEL}...")
-                        time.sleep(3)
+                        ACTIVE_MODEL = "gemini-1.5-flash"
+                        log_bot_event(f"⚠️ Model 404 Not Found. Auto-locking to production model {ACTIVE_MODEL}...")
+                        time.sleep(2)
                     else:
                         log_bot_event(f"❌ Gemini API Error: {err_str[:120]}")
                         raise model_err
