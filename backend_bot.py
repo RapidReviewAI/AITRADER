@@ -96,7 +96,8 @@ def save_portfolio(state):
                 pass
 
 def fetch_binance_klines(symbol):
-    """Fetches last 30 5m candles and calculates EMA, RSI, & Volume metrics with multi-domain failover."""
+    """Fetches candlestick data using multi-exchange failover (Binance, CoinGecko, KuCoin)."""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     endpoints = [
         f"https://api.binance.us/api/v3/klines?symbol={symbol}&interval=5m&limit=30",
         f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit=30",
@@ -105,7 +106,7 @@ def fetch_binance_klines(symbol):
     data = None
     for url in endpoints:
         try:
-            res = requests.get(url, timeout=4)
+            res = requests.get(url, headers=headers, timeout=4)
             if res.status_code == 200:
                 json_res = res.json()
                 if isinstance(json_res, list) and len(json_res) >= 15:
@@ -113,6 +114,21 @@ def fetch_binance_klines(symbol):
                     break
         except Exception:
             continue
+
+    # Fallback to KuCoin API if Binance cloud endpoints fail
+    if not data:
+        try:
+            kc_sym = symbol.replace("USDT", "-USDT")
+            url = f"https://api.kucoin.com/api/v1/market/candles?symbol={kc_sym}&type=5min"
+            res = requests.get(url, headers=headers, timeout=4)
+            if res.status_code == 200:
+                kc_json = res.json()
+                if kc_json.get("code") == "200000" and isinstance(kc_json.get("data"), list):
+                    # KuCoin candle format: [time, open, close, high, low, volume, turnover]
+                    raw_kc = kc_json["data"][:30]
+                    data = [[0, 0, c[3], c[4], c[2], c[5]] for c in reversed(raw_kc)]
+        except Exception:
+            pass
 
     if not data:
         return None
@@ -305,6 +321,10 @@ def run_single_scan_pass():
             batch_payload.append(f"SYMBOL: {sym}\nDATA: {metrics['raw_candles_summary']}\n---")
 
     log_bot_event(f"📡 Processed indicators for {len(batch_payload)} tickers.")
+
+    if not batch_payload:
+        log_bot_event("⚠️ Market API Warning: 0 tickers fetched. Retrying on next cycle...")
+        return
 
     if batch_payload:
         try:
