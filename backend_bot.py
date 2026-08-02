@@ -30,7 +30,7 @@ try:
 except Exception as _e:
     client = None
 
-MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]
+MODEL_FALLBACKS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.5-pro"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
 
 # Top 20 High-Volume Crypto Assets Watchlist
@@ -381,6 +381,8 @@ def run_single_scan_pass(passed_api_key=None):
             log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL} | Attitude: {attitude} | Strategy: {strategy})...")
             max_retries = 4
             response = None
+            extracted_text = None
+            
             for attempt in range(max_retries):
                 try:
                     response = client.models.generate_content(
@@ -393,20 +395,37 @@ def run_single_scan_pass(passed_api_key=None):
                             max_output_tokens=4096
                         )
                     )
-                    if response and getattr(response, "text", None):
+                    
+                    # Extract text cleanly from response or candidates array
+                    if response:
+                        if getattr(response, "text", None):
+                            extracted_text = response.text.strip()
+                        elif hasattr(response, "candidates") and response.candidates:
+                            try:
+                                cand = response.candidates[0]
+                                parts = cand.content.parts
+                                if parts and hasattr(parts[0], "text"):
+                                    extracted_text = parts[0].text.strip()
+                            except Exception:
+                                pass
+                    
+                    if extracted_text and len(extracted_text) > 0:
                         break
                 except Exception as model_err:
                     err_str = str(model_err)
                     next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
                     prev_model = ACTIVE_MODEL
                     ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
-                    log_bot_event(f"⚠️ API error on {prev_model}: {err_str[:120]}. Failover switching to {ACTIVE_MODEL} (attempt {attempt+1}/{max_retries})...")
-                    time.sleep(4)
+                    
+                    # Exponential backoff: starts at 2s, doubling on each retry
+                    backoff_sec = 2 * (2 ** attempt)
+                    log_bot_event(f"⚠️ API error on {prev_model}: {err_str[:120]}. Failover to {ACTIVE_MODEL} in {backoff_sec}s (attempt {attempt+1}/{max_retries})...")
+                    time.sleep(backoff_sec)
 
-            if response is None or not getattr(response, 'text', None):
+            if not extracted_text:
                 log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
             else:
-                raw_text = response.text.strip()
+                raw_text = extracted_text
                 log_bot_event(f"📥 Raw AI Stream Received ({len(raw_text)} chars): {raw_text[:150]}")
                 
                 # Strip markdown codeblocks

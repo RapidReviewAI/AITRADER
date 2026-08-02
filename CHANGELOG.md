@@ -19,6 +19,11 @@
 
 ## 📜 Recent Fixes & Modifications
 
+### [v2.4.4] - Model Quota Optimization & Failover Text Parsing
+* **Updated:** Changed default routine market scanning model to `gemini-2.0-flash` to prevent 429 quota exhaustion.
+* **Fixed:** Enhanced API response text extraction to inspect `response.text` and fallback to `response.candidates[0].content.parts[0].text`.
+* **Added:** Exponential backoff (`2s`, `4s`, `8s`, `16s`) on retry/failover attempts to allow API bucket recovery.
+
 ### [v2.4.3] - Unified Position Exit Pipeline & SQLite Trades Persistence
 * **Added:** Created `trades` table schema and unified `execute_position_exit` function in `db.py` to consolidate all position exit paths.
 * **Unified:** Routed manual UI sell button, stop-loss exits, take-profit exits, and AI momentum sell signals through `db.execute_position_exit`.
