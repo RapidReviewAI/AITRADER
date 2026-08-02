@@ -17,9 +17,8 @@ def start_background_bot_thread():
             t = threading.Thread(target=backend_bot.main, daemon=True)
             t.start()
             st.session_state["bot_thread_started"] = True
-            print("🚀 Background trading bot thread initialized automatically!")
         except Exception as e:
-            print(f"⚠️ Could not auto-start bot thread: {e}")
+            pass
 
 start_background_bot_thread()
 
@@ -383,13 +382,12 @@ def render_live_dashboard():
                 fig_clean.update_yaxes(range=[min_y, max_y], gridcolor="#1e293b", tickformat="$,.2f")
                 fig_clean.update_xaxes(gridcolor="#1e293b")
 
-                st.plotly_chart(fig_clean, use_container_width=True)
             else:
                 st.warning(f"Could not load live chart data for {selected_symbol}.")
 
-            # Positions Summary List with Sell Action Buttons
+            # Compact Positions Summary List with AI Rationale Expanders
             st.write("---")
-            st.subheader("📋 Active Positions List & Order Actions")
+            st.subheader("📋 Active Open Positions & Instant Actions")
             for p in active_positions:
                 sym = p.get("symbol", "N/A")
                 cur = market_prices.get(sym, p.get("entry_price", 0.0))
@@ -399,22 +397,28 @@ def render_live_dashboard():
                 cur_val = qty * cur
                 unrealized_pnl = cur_val - allocated
                 unrealized_pct = ((cur - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0
+                tp_val = p.get('take_profit', 0.0)
+                sl_val = p.get('stop_loss', 0.0)
+                time_bought = p.get('timestamp', 'N/A')
+                rationale_text = p.get('rationale', 'High conviction momentum buy signal.')
 
-                with st.container(border=True):
-                    c_info, c_pnl, c_action = st.columns([0.45, 0.30, 0.25])
-                    with c_info:
-                        st.markdown(f"### **{sym}**")
-                        st.caption(f"Entry: **${entry_p:,.4f}** | Live: **${cur:,.4f}** | Alloc: **${allocated:,.2f}**")
-                        st.caption(f"TP: **${p.get('take_profit', 0.0):,.4f}** | SL: **${p.get('stop_loss', 0.0):,.4f}**")
-                    with c_pnl:
-                        st.metric("Unrealized PnL", f"${unrealized_pnl:+,.2f}", f"{unrealized_pct:+.2f}%")
-                        st.write(f"Current Value: **${cur_val:,.2f}**")
+                pnl_color = "🟢" if unrealized_pnl >= 0 else "🔴"
+                
+                with st.expander(f"{pnl_color} **{sym}** | Live: **${cur:,.4f}** | PnL: **${unrealized_pnl:+,.2f} ({unrealized_pct:+.2f}%)** | Bought: **{time_bought}**", expanded=False):
+                    c_det1, c_det2, c_det3 = st.columns([0.40, 0.35, 0.25])
+                    with c_det1:
+                        st.markdown(f"**Bought At:** `${entry_p:,.4f}`")
+                        st.markdown(f"**Current Price:** `${cur:,.4f}`")
+                        st.markdown(f"**Capital Invested:** `${allocated:,.2f}`")
+                    with c_det2:
+                        st.markdown(f"**Take Profit Goal:** `${tp_val:,.4f}`")
+                        st.markdown(f"**Stop Loss Target:** `${sl_val:,.4f}`")
+                        st.markdown(f"**Order Time:** `{time_bought}`")
                     with c_action:
-                        st.write("")
-                        confirm_sell_item = st.checkbox(f"Confirm Sell", key=f"confirm_list_{sym}")
+                        confirm_sell_item = st.checkbox("Confirm Sell", key=f"confirm_list_{sym}")
                         if st.button(f"🔴 SELL {sym} NOW", key=f"sell_btn_{sym}", type="primary", use_container_width=True):
                             if not confirm_sell_item:
-                                st.warning("Please check 'Confirm Sell' first!")
+                                st.warning("Check 'Confirm Sell' first!")
                             else:
                                 exit_value = cur_val
                                 pnl = unrealized_pnl
@@ -431,7 +435,10 @@ def render_live_dashboard():
                                     "exit_value": exit_value,
                                     "pnl": pnl,
                                     "pnl_pct": pnl_pct,
+                                    "stop_loss": sl_val,
+                                    "take_profit": tp_val,
                                     "close_reason": "MANUAL_SELL_NOW",
+                                    "rationale": rationale_text,
                                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 }
                                 if "closed_trades" not in portfolio:
@@ -450,48 +457,66 @@ def render_live_dashboard():
 
                                 st.success(f"🎉 Manually closed position in {sym} at ${cur:,.4f} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
                                 st.rerun()
+                    
+                    st.markdown("---")
+                    st.markdown(f"**🧠 AI Execution Rationale:** {rationale_text}")
 
-            # Closed Trade History Table inside Tab Overview
+            # Detailed Transaction Logs & Closed History
             st.write("---")
-            st.subheader("📜 Closed Trade History & Realized Logs")
+            st.subheader("📜 Detailed Transaction & Trade History Logs")
             fresh_closed = portfolio.get("closed_trades", [])
             if fresh_closed:
-                closed_rows = []
                 for c in fresh_closed:
-                    closed_rows.append({
-                        "Symbol": c.get("symbol", "N/A"),
-                        "Close Reason": c.get("close_reason", "N/A"),
-                        "Entry Price": f"${c.get('entry_price', 0.0):,.4f}",
-                        "Exit Price": f"${c.get('exit_price', 0.0):,.4f}",
-                        "Invested Capital": f"${c.get('allocated_amount', 0.0):,.2f}",
-                        "Final Value": f"${c.get('exit_value', 0.0):,.2f}",
-                        "PnL ($)": f"${c.get('pnl', 0.0):+,.2f}",
-                        "PnL (%)": f"{c.get('pnl_pct', 0.0):+.2f}%",
-                        "Close Timestamp": c.get("timestamp", "N/A")
-                    })
-                st.dataframe(pd.DataFrame(closed_rows), use_container_width=True)
+                    sym_c = c.get("symbol", "N/A")
+                    pnl_c = c.get("pnl", 0.0)
+                    pnl_pct_c = c.get("pnl_pct", 0.0)
+                    badge_c = "🟢 WIN" if pnl_c >= 0 else "🔴 LOSS"
+                    reason_c = c.get("close_reason", "MANUAL")
+                    t_closed = c.get("timestamp", "N/A")
+                    entry_c = c.get("entry_price", 0.0)
+                    exit_c = c.get("exit_price", 0.0)
+                    tp_c = c.get("take_profit", 0.0)
+                    sl_c = c.get("stop_loss", 0.0)
+                    alloc_c = c.get("allocated_amount", 0.0)
+                    val_c = c.get("exit_value", 0.0)
+                    rat_c = c.get("rationale", "Standard AI momentum execution.")
+
+                    with st.expander(f"{badge_c} **{sym_c}** | PnL: **${pnl_c:+,.2f} ({pnl_pct_c:+.2f}%)** | Exit via `{reason_c}` @ {t_closed}"):
+                        c_t1, c_t2, c_t3 = st.columns(3)
+                        c_t1.markdown(f"**Bought Price:** `${entry_c:,.4f}`\n\n**Exit Price:** `${exit_c:,.4f}`")
+                        c_t2.markdown(f"**Take Profit Goal:** `${tp_c:,.4f}`\n\n**Stop Loss Target:** `${sl_c:,.4f}`")
+                        c_t3.markdown(f"**Invested Capital:** `${alloc_c:,.2f}`\n\n**Final Realized Value:** `${val_c:,.2f}`")
+                        st.markdown("---")
+                        st.markdown(f"**🧠 AI Trade Rationale:** {rat_c}")
             else:
                 st.info("No closed trades recorded yet.")
         else:
             st.info("No active open positions. AI is scanning for high-conviction momentum setups...")
             st.write("---")
-            st.subheader("📜 Closed Trade History & Realized Logs")
+            st.subheader("📜 Detailed Transaction & Trade History Logs")
             fresh_closed = portfolio.get("closed_trades", [])
             if fresh_closed:
-                closed_rows = []
                 for c in fresh_closed:
-                    closed_rows.append({
-                        "Symbol": c.get("symbol", "N/A"),
-                        "Close Reason": c.get("close_reason", "N/A"),
-                        "Entry Price": f"${c.get('entry_price', 0.0):,.4f}",
-                        "Exit Price": f"${c.get('exit_price', 0.0):,.4f}",
-                        "Invested Capital": f"${c.get('allocated_amount', 0.0):,.2f}",
-                        "Final Value": f"${c.get('exit_value', 0.0):,.2f}",
-                        "PnL ($)": f"${c.get('pnl', 0.0):+,.2f}",
-                        "PnL (%)": f"{c.get('pnl_pct', 0.0):+.2f}%",
-                        "Close Timestamp": c.get("timestamp", "N/A")
-                    })
-                st.dataframe(pd.DataFrame(closed_rows), use_container_width=True)
+                    sym_c = c.get("symbol", "N/A")
+                    pnl_c = c.get("pnl", 0.0)
+                    pnl_pct_c = c.get("pnl_pct", 0.0)
+                    badge_c = "🟢 WIN" if pnl_c >= 0 else "🔴 LOSS"
+                    reason_c = c.get("close_reason", "MANUAL")
+                    t_closed = c.get("timestamp", "N/A")
+                    entry_c = c.get("entry_price", 0.0)
+                    exit_c = c.get("exit_price", 0.0)
+                    tp_c = c.get("take_profit", 0.0)
+                    sl_c = c.get("stop_loss", 0.0)
+                    alloc_c = c.get("allocated_amount", 0.0)
+                    val_c = c.get("exit_value", 0.0)
+                    rat_c = c.get("rationale", "Standard AI momentum execution.")
+
+                    with st.expander(f"{badge_c} **{sym_c}** | PnL: **${pnl_c:+,.2f} ({pnl_pct_c:+.2f}%)** | Exit via `{reason_c}` @ {t_closed}"):
+                        c_t1, c_t2, c_t3 = st.columns(3)
+                        c_t1.markdown(f"**Bought Price:** `${entry_c:,.4f}`\n\n**Exit Price:** `${exit_c:,.4f}`")
+                        c_t2.markdown(f"**Take Profit Goal:** `${tp_c:,.4f}`\n\n**Stop Loss Target:** `${sl_c:,.4f}`")
+                        c_t3.markdown(f"**Invested Capital:** `${alloc_c:,.2f}`\n\n**Final Realized Value:** `${val_c:,.2f}`")
+                        st.markdown("---")
             else:
                 st.info("No closed trades recorded yet.")
 
