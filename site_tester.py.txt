@@ -1,0 +1,84 @@
+import time
+import os
+from datetime import datetime
+from playwright.sync_api import sync_playwright
+
+SITE_URL = "https://aitrader-87e9v7yaqcv7ahkzkljjq.streamlit.app"
+LOG_FILE = "site_test_errors.log"
+SCREENSHOT_DIR = "test_screenshots"
+
+os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
+def log_issue(issue_type, message):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry = f"[{timestamp}] [{issue_type}] {message}\n"
+    print(entry.strip())
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(entry)
+
+def run_automated_test():
+    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    print(f"\n🚀 Running Site Check at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
+    
+    issues_found = []
+
+    with sync_playwright() as p:
+        # Launch Chromium in headless mode
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(viewport={'width': 1280, 'height': 800})
+        page = context.new_page()
+
+        # Listen for browser console errors and failed network requests
+        page.on("console", lambda msg: issues_found.append(f"Console {msg.type.upper()}: {msg.text}") if msg.type in ["error"] else None)
+        page.on("requestfailed", lambda req: issues_found.append(f"Network Failure: {req.url} - {req.failure}"))
+
+        try:
+            # 1. Load Main Site
+            response = page.goto(SITE_URL, wait_until="networkidle", timeout=45000)
+            if not response or response.status >= 400:
+                issues_found.append(f"HTTP Status Error: {response.status if response else 'No Response'}")
+
+            # Wait for Streamlit app main container to load
+            page.wait_for_selector(".main", timeout=30000)
+            time.sleep(3)
+
+            # 2. Check for Unescaped Raw HTML Leaks on UI
+            page_html = page.content()
+            if '<div style="' in page_html and '<span style="' in page_html and 'display: inline-block' in page_html:
+                issues_found.append("UI Anomaly: Unescaped raw HTML string rendering visible on screen!")
+
+            # 3. Test Dashboard Tab Switching
+            tabs = ["📊 Performance & Active Positions", "📡 Engine Scan Status & Logs", "🧠 Detailed AI Brain Analysis"]
+            for tab_name in tabs:
+                try:
+                    tab_element = page.get_by_role("tab", name=tab_name)
+                    if tab_element.is_visible():
+                        tab_element.click()
+                        time.sleep(1.5)
+                    else:
+                        issues_found.append(f"UI Missing: Could not locate tab '{tab_name}'")
+                except Exception as tab_err:
+                    issues_found.append(f"Tab Click Error ('{tab_name}'): {tab_err}")
+
+            # 4. Save Logs and Screenshots if Issues Occurred
+            if issues_found:
+                screenshot_path = os.path.join(SCREENSHOT_DIR, f"error_{timestamp_str}.png")
+                page.screenshot(path=screenshot_path, full_page=True)
+                for issue in issues_found:
+                    log_issue("FAIL", f"{issue} | Screenshot: {screenshot_path}")
+            else:
+                print("✅ Site Check Passed cleanly! No errors detected.")
+
+        except Exception as crash_err:
+            screenshot_path = os.path.join(SCREENSHOT_DIR, f"crash_{timestamp_str}.png")
+            try:
+                page.screenshot(path=screenshot_path, full_page=True)
+            except Exception:
+                pass
+            log_issue("CRASH", f"Test runner exception: {crash_err} | Screenshot: {screenshot_path}")
+
+        finally:
+            browser.close()
+
+if __name__ == "__main__":
+    run_automated_test()
