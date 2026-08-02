@@ -13,9 +13,15 @@ import time
 def start_background_bot_thread():
     try:
         import backend_bot
+        ui_key = None
+        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+            ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+        elif os.getenv("GEMINI_API_KEY"):
+            ui_key = os.getenv("GEMINI_API_KEY")
+
         existing_thread = next((t for t in threading.enumerate() if t.name == "ChartPulseBackendThread"), None)
         if existing_thread is None or not existing_thread.is_alive():
-            t = threading.Thread(target=backend_bot.main, daemon=True, name="ChartPulseBackendThread")
+            t = threading.Thread(target=backend_bot.main, args=(ui_key,), daemon=True, name="ChartPulseBackendThread")
             t.start()
             st.session_state["bot_thread_started"] = True
         
@@ -28,11 +34,11 @@ def start_background_bot_thread():
                     try:
                         last_dt = datetime.strptime(last_scan, "%Y-%m-%d %H:%M:%S")
                         if (datetime.now() - last_dt).total_seconds() > 90:
-                            threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                            threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
                     except Exception:
                         pass
                 else:
-                    threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                    threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
     except Exception:
         pass
 

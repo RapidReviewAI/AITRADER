@@ -487,7 +487,7 @@ def run_single_scan_pass(passed_api_key=None):
     portfolio["last_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     save_portfolio(portfolio)
 
-def main():
+def main(passed_api_key=None):
     global ACTIVE_MODEL
     print(f"ChartPulse AI Engine v2.0.0 Active [{ACTIVE_MODEL}]")
     print(f"API Quota Optimized Mode: Scanning 20 assets every {SCAN_INTERVAL_SECONDS}s")
@@ -499,7 +499,7 @@ def main():
     time.sleep(5)
     
     while True:
-        run_single_scan_pass()
+        run_single_scan_pass(passed_api_key=passed_api_key)
         time.sleep(SCAN_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
