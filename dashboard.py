@@ -525,16 +525,19 @@ def render_live_dashboard():
         last_scan = portfolio.get("last_scan_time", "N/A")
         bot_logs = portfolio.get("bot_logs", [])
 
-        # Dynamic countdown calculation for next scan
+        # Calculate target timestamp for live JS ticking timer
         import time as _time
         seconds_left = 60
+        target_timestamp_ms = int((_time.time() + 60) * 1000)
         if last_scan != "N/A":
             try:
                 last_dt = datetime.strptime(last_scan, "%Y-%m-%d %H:%M:%S")
                 elapsed = (_time.time() - last_dt.timestamp())
-                seconds_left = max(0, int(60 - (elapsed % 60)))
+                rem = max(0, int(60 - (elapsed % 60)))
+                target_timestamp_ms = int((_time.time() + rem) * 1000)
+                seconds_left = rem
             except Exception:
-                seconds_left = 60
+                pass
 
         s_col1, s_col2, s_col3, s_col4 = st.columns(4)
         with s_col1:
@@ -550,7 +553,28 @@ def render_live_dashboard():
         with s_col3:
             with st.container(border=True):
                 st.caption("NEXT SCAN IN")
-                st.markdown(f"### ⏳ ~{seconds_left}s")
+                # Live HTML/JS Ticking Countdown Component
+                st.components.v1.html(f"""
+                <div style="font-family: sans-serif; text-align: left; background: transparent; color: white;">
+                    <div id="countdown" style="font-size: 24px; font-weight: bold; color: #facc15;">⏳ {seconds_left}s</div>
+                </div>
+                <script>
+                    var targetTime = {target_timestamp_ms};
+                    var x = setInterval(function() {{
+                        var now = new Date().getTime();
+                        var distance = Math.max(0, Math.floor((targetTime - now) / 1000));
+                        var el = document.getElementById("countdown");
+                        if (el) {{
+                            if (distance <= 0) {{
+                                el.innerHTML = "⚡ SCANNING NOW...";
+                                el.style.color = "#10b981";
+                            }} else {{
+                                el.innerHTML = "⏳ " + distance + "s";
+                            }}
+                        }}
+                    }}, 1000);
+                </script>
+                """, height=40)
                 st.caption("Cycle Interval: 60s")
         with s_col4:
             with st.container(border=True):
