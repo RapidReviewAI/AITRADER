@@ -384,7 +384,34 @@ def run_single_scan_pass(passed_api_key=None):
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTIONS,
                             response_mime_type="application/json",
-                            temperature=0.2,
+                            response_schema=types.Schema(
+                                type=types.Type.ARRAY,
+                                items=types.Schema(
+                                    type=types.Type.OBJECT,
+                                    properties={
+                                        "action": types.Schema(type=types.Type.STRING),
+                                        "symbol": types.Schema(type=types.Type.STRING),
+                                        "confidence_score": types.Schema(type=types.Type.INTEGER),
+                                        "target_entry_price": types.Schema(type=types.Type.NUMBER),
+                                        "trade_details": types.Schema(
+                                            type=types.Type.OBJECT,
+                                            properties={
+                                                "entry_price": types.Schema(type=types.Type.NUMBER),
+                                                "stop_loss": types.Schema(type=types.Type.NUMBER),
+                                                "take_profit": types.Schema(type=types.Type.NUMBER),
+                                                "allocated_amount": types.Schema(type=types.Type.NUMBER),
+                                                "risk_reward_ratio": types.Schema(type=types.Type.STRING)
+                                            }
+                                        ),
+                                        "technical_rationale": types.Schema(
+                                            type=types.Type.ARRAY,
+                                            items=types.Schema(type=types.Type.STRING)
+                                        )
+                                    },
+                                    required=["action", "symbol", "confidence_score"]
+                                )
+                            ),
+                            temperature=0.1,
                             max_output_tokens=4096
                         )
                     )
