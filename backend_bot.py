@@ -46,6 +46,8 @@ STATE_FILE = os.path.join(BASE_DIR, "portfolio_state.json")
 ERROR_LOG_FILE = os.path.join(BASE_DIR, "error_log.txt")
 SCAN_INTERVAL_SECONDS = 60  # 60-second scan interval backed by multi-model failover rotation
 
+import db
+
 def log_error_to_file(error_msg):
     """Appends backend errors to error_log.txt with full date & timestamp."""
     try:
@@ -56,56 +58,37 @@ def log_error_to_file(error_msg):
     except Exception as e:
         print(f"❌ Failed writing to {ERROR_LOG_FILE}: {e}")
 
-def load_portfolio():
-    default_state = {
-        "cash_balance": 10000.00,
-        "invested_amount": 0.00,
-        "active_positions": [],
-        "closed_trades": [],
-        "latest_scan_decisions": [],
-        "bot_settings": {
-            "min_confidence": 75,
-            "take_profit_pct": 4.0,
-            "stop_loss_pct": 2.0,
-            "max_positions": 5,
-            "max_trade_size": 3000.0
-        },
-        "equity_history": [
-            {
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "cash": 10000.00,
-                "invested": 0.00,
-                "total_equity": 10000.00
-            }
-        ]
-    }
-    if os.path.exists(STATE_FILE):
+def load_portfolio(user_id=1):
+    """Loads user portfolio from SQLite via db.py (and syncs with local state file for Guest user 1)."""
+    db.init_db()
+    portfolio = db.get_or_create_portfolio(user_id)
+    
+    # Sync with local STATE_FILE for Guest (user_id=1) if present
+    if user_id == 1 and os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for key, val in default_state.items():
-                    if key not in data:
-                        data[key] = val
-                return data
+                file_data = json.load(f)
+                for key in ["cash_balance", "active_positions", "closed_trades", "latest_scan_decisions", "equity_history", "bot_logs", "last_scan_time", "challenge_active", "challenge_start_time"]:
+                    if key in file_data and file_data[key]:
+                        portfolio[key] = file_data[key]
         except Exception as e:
-            print(f"⚠️ Error reading {STATE_FILE}, returning defaults: {e}")
-            return default_state
-    return default_state
+            print(f"⚠️ Error merging local state file: {e}")
+    return portfolio
 
-def save_portfolio(state):
-    """Atomic write to avoid JSON corruption during concurrent dashboard reads."""
-    temp_file = f"{STATE_FILE}.tmp"
-    try:
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(state, f, indent=4)
-        os.replace(temp_file, STATE_FILE)
-    except Exception as e:
-        print(f"❌ Error saving {STATE_FILE}: {e}")
-        if os.path.exists(temp_file):
-            try:
-                os.remove(temp_file)
-            except Exception:
-                pass
+def save_portfolio(portfolio, user_id=1):
+    """Saves portfolio to SQLite database and syncs local state file for Guest user 1."""
+    db.init_db()
+    db.save_portfolio_db(user_id, portfolio)
+    
+    # Sync to local STATE_FILE if user is Guest (1)
+    if user_id == 1:
+        temp_file = f"{STATE_FILE}.tmp"
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(portfolio, f, indent=4)
+            os.replace(temp_file, STATE_FILE)
+        except Exception as e:
+            print(f"❌ Error saving {STATE_FILE}: {e}")
 
 def fetch_binance_klines(symbol):
     """Fetches candlestick data using multi-exchange failover (Binance, CoinGecko, KuCoin)."""
@@ -308,27 +291,34 @@ def run_single_scan_pass(passed_api_key=None):
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"\n--- [Scan Cycle Start: {timestamp}] ---")
     
-    portfolio = load_portfolio()
-    manage_active_positions(portfolio)
+    user_ids = db.get_all_users()
+    
+    # Process position exits across all user portfolios first
+    for u_id in user_ids:
+        p = load_portfolio(user_id=u_id)
+        manage_active_positions(p)
+        save_portfolio(p, user_id=u_id)
 
-    if "bot_logs" not in portfolio:
-        portfolio["bot_logs"] = []
+    # Primary reference portfolio for bot logs & scan decisions (Guest user 1)
+    primary_portfolio = load_portfolio(user_id=1)
+    if "bot_logs" not in primary_portfolio:
+        primary_portfolio["bot_logs"] = []
 
     def log_bot_event(msg):
         try:
             print(msg)
         except UnicodeEncodeError:
             print(msg.encode('ascii', errors='replace').decode('ascii'))
-        portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-        if len(portfolio["bot_logs"]) > 50:
-            portfolio["bot_logs"] = portfolio["bot_logs"][:50]
-        save_portfolio(portfolio)
+        primary_portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+        if len(primary_portfolio["bot_logs"]) > 50:
+            primary_portfolio["bot_logs"] = primary_portfolio["bot_logs"][:50]
+        save_portfolio(primary_portfolio, user_id=1)
         
         # Log all errors/exceptions to error_log.txt with full date and time
         if "❌" in msg or "⚠️" in msg or "Error" in msg or "CRITICAL" in msg:
             log_error_to_file(msg)
 
-    log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL}")
+    log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL} | Active Users: {len(user_ids)}")
 
     batch_payload = []
     live_prices = {}
@@ -365,7 +355,7 @@ def run_single_scan_pass(passed_api_key=None):
 
             client = genai.Client(api_key=str(api_key).strip())
 
-            settings = portfolio.get("bot_settings", {
+            settings = primary_portfolio.get("bot_settings", {
                 "min_confidence": 75,
                 "take_profit_pct": 4.0,
                 "stop_loss_pct": 2.0,
@@ -378,10 +368,10 @@ def run_single_scan_pass(passed_api_key=None):
             attitude = settings.get("bot_attitude", "Balanced")
             strategy = settings.get("strategy", "Scalping")
             
-            header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
+            header = f"CURRENT_AVAILABLE_CASH: ${primary_portfolio['cash_balance']:,.2f}\n"
             header += f"BOT_SETTINGS: Attitude={attitude}, Strategy={strategy}, MinConfidence={settings.get('min_confidence', 75)}%\n"
             
-            active_pos_list = portfolio.get("active_positions", [])
+            active_pos_list = primary_portfolio.get("active_positions", [])
             if active_pos_list:
                 header += "CURRENT_ACTIVE_OPEN_POSITIONS:\n"
                 for ap in active_pos_list:
@@ -411,7 +401,6 @@ def run_single_scan_pass(passed_api_key=None):
                         break
                 except Exception as model_err:
                     err_str = str(model_err)
-                    # Rotate to next fallback model on 404 or 429 quota limits
                     next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
                     prev_model = ACTIVE_MODEL
                     ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
@@ -431,7 +420,6 @@ def run_single_scan_pass(passed_api_key=None):
                     raw_text = raw_text[:-3]
                 raw_text = raw_text.strip()
 
-                # Clean common LLM JSON syntax quirks (trailing commas, unescaped quotes, NaN/nulls)
                 import re
                 cleaned_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
                 cleaned_text = re.sub(r':\s*NaN', r': null', cleaned_text)
@@ -451,6 +439,7 @@ def run_single_scan_pass(passed_api_key=None):
                             signals = None
                     else:
                         signals = None
+
                 if isinstance(signals, list):
                     decisions_log = []
                     for s in signals:
@@ -466,102 +455,99 @@ def run_single_scan_pass(passed_api_key=None):
                             "rationale": "; ".join(s.get("technical_rationale", []) if isinstance(s.get("technical_rationale"), list) else [str(s.get("technical_rationale", ""))]),
                             "timestamp": datetime.now().strftime("%H:%M:%S")
                         })
-                    portfolio["latest_scan_decisions"] = decisions_log
-                    
-                    min_conf = settings.get("min_confidence", 75)
-                    tp_pct = settings.get("take_profit_pct", 4.0) / 100.0
-                    sl_pct = settings.get("stop_loss_pct", 2.0) / 100.0
-                    max_pos = settings.get("max_positions", 5)
-                    max_alloc_cap = settings.get("max_trade_size", 3000.0)
 
-                    # Process SELL Signals first
-                    sell_signals = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_SELL"]
-                    for sell_sig in sell_signals:
-                        s_sym = sell_sig.get("symbol")
-                        pos_match = next((p for p in portfolio["active_positions"] if p["symbol"] == s_sym), None)
-                        if pos_match:
-                            cur_p = live_prices.get(s_sym, pos_match.get("entry_price", 1.0))
-                            alloc = pos_match.get("allocated_amount", 0.0)
-                            entry_p = pos_match.get("entry_price", 1.0)
-                            qty = alloc / entry_p if entry_p > 0 else 0.0
-                            exit_val = qty * cur_p
-                            pnl = exit_val - alloc
-                            pnl_pct = ((cur_p - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0
-
-                            portfolio["cash_balance"] += exit_val
-                            portfolio["invested_amount"] = max(portfolio.get("invested_amount", 0) - alloc, 0)
-                            portfolio["active_positions"] = [p for p in portfolio["active_positions"] if p["symbol"] != s_sym]
-
-                            rat_list = sell_sig.get("technical_rationale", ["AI Momentum Shift Sell"])
-                            rat_str = "; ".join(rat_list) if isinstance(rat_list, list) else str(rat_list)
-
-                            closed_rec = {
-                                "symbol": s_sym,
-                                "entry_price": entry_p,
-                                "exit_price": cur_p,
-                                "allocated_amount": alloc,
-                                "exit_value": exit_val,
-                                "pnl": pnl,
-                                "pnl_pct": pnl_pct,
-                                "close_reason": "AI_MOMENTUM_SELL",
-                                "rationale": rat_str,
-                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            }
-                            if "closed_trades" not in portfolio:
-                                portfolio["closed_trades"] = []
-                            portfolio["closed_trades"].insert(0, closed_rec)
-                            log_bot_event(f"🚨 AI EXECUTED POSITION SELL: {s_sym} @ ${cur_p:,.4f} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%) | Rationale: {rat_str}")
-
-                    # Process BUY Signals
-                    valid_buys = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_BUY" and float(s.get("confidence_score", 0) or 0) >= min_conf]
-                    valid_buys = sorted(valid_buys, key=lambda x: float(x.get("confidence_score", 0) or 0), reverse=True)
-
-                    for signal in valid_buys:
-                        sym = signal.get("symbol")
-                        confidence = signal.get("confidence_score", 0)
+                    # Apply signals across ALL active user accounts in SQLite
+                    for u_id in user_ids:
+                        user_p = load_portfolio(user_id=u_id)
+                        user_p["latest_scan_decisions"] = decisions_log
+                        user_settings = user_p.get("bot_settings", settings)
                         
-                        already_in = any(p["symbol"] == sym for p in portfolio["active_positions"])
-                        if len(portfolio["active_positions"]) < max_pos and not already_in:
-                            trade = signal.get("trade_details") or {}
-                            entry_pr = live_prices.get(sym, trade.get("entry_price", 0.0))
-                            
-                            suggested_alloc = float(trade.get("allocated_amount") or 2000.0)
-                            alloc = min(suggested_alloc, max_alloc_cap, portfolio["cash_balance"])
+                        u_min_conf = user_settings.get("min_confidence", 75)
+                        u_tp_pct = user_settings.get("take_profit_pct", 4.0) / 100.0
+                        u_sl_pct = user_settings.get("stop_loss_pct", 2.0) / 100.0
+                        u_max_pos = user_settings.get("max_positions", 5)
+                        u_max_alloc = user_settings.get("max_trade_size", 3000.0)
 
-                            if entry_pr > 0 and alloc >= 100.0:
-                                take_val = float(trade.get("take_profit") or (entry_pr * (1 + tp_pct)))
-                                stop_val = float(trade.get("stop_loss") or (entry_pr * (1 - sl_pct)))
+                        # Process SELL Signals
+                        sell_signals = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_SELL"]
+                        for sell_sig in sell_signals:
+                            s_sym = sell_sig.get("symbol")
+                            pos_match = next((p for p in user_p.get("active_positions", []) if p["symbol"] == s_sym), None)
+                            if pos_match:
+                                cur_p = live_prices.get(s_sym, pos_match.get("entry_price", 1.0))
+                                alloc = pos_match.get("allocated_amount", 0.0)
+                                entry_p = pos_match.get("entry_price", 1.0)
+                                qty = alloc / entry_p if entry_p > 0 else 0.0
+                                exit_val = qty * cur_p
+                                pnl = exit_val - alloc
+                                pnl_pct = ((cur_p - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0
 
-                                portfolio["cash_balance"] -= alloc
-                                portfolio["invested_amount"] += alloc
+                                user_p["cash_balance"] += exit_val
+                                user_p["invested_amount"] = max(user_p.get("invested_amount", 0) - alloc, 0)
+                                user_p["active_positions"] = [p for p in user_p["active_positions"] if p["symbol"] != s_sym]
 
-                                portfolio["active_positions"].append({
-                                    "symbol": sym,
-                                    "entry_price": entry_pr,
+                                rat_list = sell_sig.get("technical_rationale", ["AI Momentum Shift Sell"])
+                                rat_str = "; ".join(rat_list) if isinstance(rat_list, list) else str(rat_list)
+
+                                closed_rec = {
+                                    "symbol": s_sym,
+                                    "entry_price": entry_p,
+                                    "exit_price": cur_p,
                                     "allocated_amount": alloc,
-                                    "stop_loss": stop_val,
-                                    "take_profit": take_val,
-                                    "risk_reward": trade.get("risk_reward_ratio", "1:2"),
-                                    "rationale": "; ".join(signal.get("technical_rationale", []) if isinstance(signal.get("technical_rationale"), list) else [str(signal.get("technical_rationale", ""))]),
+                                    "exit_value": exit_val,
+                                    "pnl": pnl,
+                                    "pnl_pct": pnl_pct,
+                                    "close_reason": "AI_MOMENTUM_SELL",
+                                    "rationale": rat_str,
                                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                })
-                                log_bot_event(f"⚡ EXECUTED POSITION BUY: ${alloc:,.2f} in {sym} (Confidence: {confidence}% | TP: +{settings.get('take_profit_pct')}%, SL: -{settings.get('stop_loss_pct')}%)")
-                            else:
-                                log_bot_event(f"⚠️ Could not execute buy for {sym}: price data missing or allocation below minimum.")
-                        elif already_in:
-                            log_bot_event(f"ℹ️ Buy signal for {sym} skipped (position already open).")
-                    
-                    if not valid_buys and not sell_signals:
-                        log_bot_event(f"💤 No buy triggers met minimum confidence threshold (>= {min_conf}%).")
+                                }
+                                if "closed_trades" not in user_p:
+                                    user_p["closed_trades"] = []
+                                user_p["closed_trades"].insert(0, closed_rec)
+
+                        # Process BUY Signals
+                        valid_buys = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_BUY" and float(s.get("confidence_score", 0) or 0) >= u_min_conf]
+                        valid_buys = sorted(valid_buys, key=lambda x: float(x.get("confidence_score", 0) or 0), reverse=True)
+
+                        for signal in valid_buys:
+                            sym = signal.get("symbol")
+                            already_in = any(p["symbol"] == sym for p in user_p.get("active_positions", []))
+                            if len(user_p.get("active_positions", [])) < u_max_pos and not already_in:
+                                trade = signal.get("trade_details") or {}
+                                entry_pr = live_prices.get(sym, trade.get("entry_price", 0.0))
+                                suggested_alloc = float(trade.get("allocated_amount") or 2000.0)
+                                alloc = min(suggested_alloc, u_max_alloc, user_p["cash_balance"])
+
+                                if entry_pr > 0 and alloc >= 100.0:
+                                    take_val = float(trade.get("take_profit") or (entry_pr * (1 + u_tp_pct)))
+                                    stop_val = float(trade.get("stop_loss") or (entry_pr * (1 - u_sl_pct)))
+
+                                    user_p["cash_balance"] -= alloc
+                                    user_p["invested_amount"] = user_p.get("invested_amount", 0.0) + alloc
+                                    if "active_positions" not in user_p:
+                                        user_p["active_positions"] = []
+
+                                    user_p["active_positions"].append({
+                                        "symbol": sym,
+                                        "entry_price": entry_pr,
+                                        "allocated_amount": alloc,
+                                        "stop_loss": stop_val,
+                                        "take_profit": take_val,
+                                        "risk_reward": trade.get("risk_reward_ratio", "1:2"),
+                                        "rationale": "; ".join(signal.get("technical_rationale", []) if isinstance(signal.get("technical_rationale"), list) else [str(signal.get("technical_rationale", ""))]),
+                                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    })
+
+                        update_equity_snapshot(user_p, live_prices)
+                        user_p["last_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        save_portfolio(user_p, user_id=u_id)
+
+                    log_bot_event(f"✅ Multi-User Scan Complete: Decisions saved across {len(user_ids)} active account(s).")
                 else:
                     log_bot_event("⚠️ Unexpected response format from AI.")
 
         except Exception as e:
             log_bot_event(f"❌ Scan Error: {e}")
-
-    update_equity_snapshot(portfolio, live_prices)
-    portfolio["last_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    save_portfolio(portfolio)
 
 def main(passed_api_key=None):
     global ACTIVE_MODEL

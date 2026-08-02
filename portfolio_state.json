@@ -1,6 +1,7 @@
 {
-    "cash_balance": 0.0,
-    "invested_amount": 9998.580217699953,
+    "user_id": 1,
+    "cash_balance": 10000.0,
+    "invested_amount": 10000.0,
     "active_positions": [
         {
             "symbol": "BTCUSDT",
@@ -44,6 +45,16 @@
         }
     ],
     "closed_trades": [],
+    "bot_settings": {
+        "min_confidence": 75,
+        "take_profit_pct": 4.0,
+        "stop_loss_pct": 2.0,
+        "max_positions": 5,
+        "max_trade_size": 3000.0,
+        "bot_attitude": "Balanced",
+        "strategy": "Scalping"
+    },
+    "last_scan_time": "2026-08-02 11:57:55",
     "latest_scan_decisions": [
         {
             "symbol": "SOLUSDT",
@@ -68,15 +79,6 @@
             "timestamp": "11:57:55"
         }
     ],
-    "bot_settings": {
-        "min_confidence": 75,
-        "take_profit_pct": 4.0,
-        "stop_loss_pct": 2.0,
-        "max_positions": 5,
-        "max_trade_size": 3000.0,
-        "bot_attitude": "Balanced",
-        "strategy": "Scalping"
-    },
     "equity_history": [
         {
             "timestamp": "2026-08-02 00:00:00",
@@ -98,6 +100,16 @@
         }
     ],
     "bot_logs": [
+        "[12:20:43] \u2705 Multi-User Scan Complete: Decisions saved across 1 active account(s).",
+        "[12:20:43] \ud83d\udce5 Raw AI Stream Received (773 chars): [\n  {\n    \"action\": \"EXECUTE_PAPER_SELL\",\n    \"symbol\": \"BTCUSDT\",\n    \"confidence_score\": 80,\n    \"target_entry_price\": 63080.85,\n    \"trade_details\"",
+        "[12:20:42] \ud83e\udde0 Querying Gemini API (gemini-3.5-flash-lite | Attitude: Balanced | Strategy: Scalping)...",
+        "[12:20:41] \ud83d\udce1 Processed indicators for 20 tickers.",
+        "[12:20:32] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",
+        "[12:18:03] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
+        "[12:15:58] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
+        "[12:09:52] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
+        "[12:09:36] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
+        "[12:09:24] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[12:07:14] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[12:04:51] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[12:03:04] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
@@ -114,7 +126,5 @@
         "[11:56:28] \ud83d\udce1 Processed indicators for 20 tickers.",
         "[11:56:19] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[00:00:00] \ud83d\ude80 Clean portfolio state initialized. $10,000 balance ready for scanning."
-    ],
-    "last_scan_time": "2026-08-02 11:57:55",
-    "challenge_active": false
+    ]
 }

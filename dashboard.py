@@ -7,10 +7,100 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 import threading
-import time
+import uuid
+
+import db
+
+# Initialize SQLite database schema
+db.init_db()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(BASE_DIR, "portfolio_state.json")
+SESSIONS_FILE = os.path.join(BASE_DIR, "active_sessions.json")
+
+def track_and_get_active_viewers():
+    """Tracks session heartbeats in active_sessions.json and returns active viewer count within last 30s."""
+    try:
+        if "user_session_id" not in st.session_state:
+            st.session_state["user_session_id"] = str(uuid.uuid4())
+        
+        session_id = st.session_state["user_session_id"]
+        now_ts = time.time()
+        
+        sessions = {}
+        if os.path.exists(SESSIONS_FILE):
+            try:
+                with open(SESSIONS_FILE, "r", encoding="utf-8") as f:
+                    sessions = json.load(f)
+            except Exception:
+                sessions = {}
+
+        # Update current session heartbeat
+        sessions[session_id] = now_ts
+
+        # Prune sessions older than 30 seconds
+        active_sessions = {s_id: ts for s_id, ts in sessions.items() if (now_ts - ts) <= 30}
+
+        # Atomic write
+        temp_file = f"{SESSIONS_FILE}.tmp"
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(active_sessions, f, indent=2)
+            os.replace(temp_file, SESSIONS_FILE)
+        except Exception:
+            pass
+
+        return max(1, len(active_sessions))
+    except Exception:
+        return 1
+
+def render_live_viewer_badge(viewer_count):
+    """Renders a styled UI badge showing a pulsing green indicator and live viewer count."""
+    badge_html = f"""
+    <style>
+    .viewer-badge {{
+        display: inline-flex;
+        align-items: center;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        color: #f8fafc;
+        margin-left: 10px;
+    }}
+    .pulse-dot {{
+        width: 8px;
+        height: 8px;
+        background-color: #10b981;
+        border-radius: 50%;
+        margin-right: 8px;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulse 1.8s infinite;
+    }}
+    @keyframes pulse {{
+        0% {{
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }}
+        70% {{
+            transform: scale(1);
+            box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }}
+        100% {{
+            transform: scale(0.95);
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }}
+    }}
+    </style>
+    <div class="viewer-badge">
+        <div class="pulse-dot"></div>
+        <span>👁️ {viewer_count} Live Viewer{"s" if viewer_count != 1 else ""}</span>
+    </div>
+    """
+    st.markdown(badge_html, unsafe_allow_html=True)
 
 # Auto-start backend bot in a background thread if running on Streamlit Cloud
 def start_background_bot_thread():
@@ -174,98 +264,135 @@ def fetch_live_crypto_news():
         ]
     return news_items
 
-def render_dual_ticker_header(market_prices, watchlist):
-    """Renders both price and news tickers in a single combined iframe block."""
-    ticker_html_items = []
-    for sym in watchlist:
-        price = market_prices.get(sym)
-        price_str = f"${price:,.4f}" if price and price < 1 else (f"${price:,.2f}" if price else "Loading...")
-        clean_name = sym.replace("USDT", "")
-        ticker_html_items.append(f'<span style="margin: 0 18px;"><b style="color: #60a5fa;">{clean_name}</b>: <span style="color: #e5e7eb;">{price_str}</span></span>')
-
-    full_price_text = " • ".join(ticker_html_items)
-
-    news = fetch_live_crypto_news()
-    news_html_items = []
-    for item in news:
-        news_html_items.append(f'<a href="{item["link"]}" target="_blank" style="color: #f59e0b; text-decoration: none; font-weight: 500; margin: 0 16px;">📰 {item["title"]}</a>')
+def render_sticky_dual_ticker_header(market_data, watchlist):
+    """Injects a sticky dual-marquee ticker directly into Streamlit's header layer."""
     
-    full_news_text = " • ".join(news_html_items)
+    # 1. Price & % Change Items
+    price_items_html = ""
+    for sym in watchlist:
+        info = market_data.get(sym, {})
+        if isinstance(info, dict):
+            price = info.get("price")
+            pct = info.get("change_pct", 0.0)
+        else:
+            price = float(info) if info is not None else None
+            pct = 0.0
+        
+        clean_sym = sym.replace("USDT", "")
+        
+        if price is not None:
+            price_str = f"${price:,.4f}" if price < 1 else f"${price:,.2f}"
+            color = "#10b981" if pct >= 0 else "#ef4444"
+            sign = "+" if pct >= 0 else ""
+            pct_str = f"{sign}{pct:.2f}%"
+        else:
+            price_str = "Loading..."
+            color = "#94a3b8"
+            pct_str = ""
 
-    combined_html = f"""
+        price_items_html += f"""
+        <div style="display: inline-block; padding: 0 20px; font-weight: 600;">
+            <span style="color: #94a3b8;">{clean_sym}:</span> 
+            <span style="color: #f4f4f5;">{price_str}</span>
+            <span style="color: {color}; font-size: 12px; margin-left: 4px;">({pct_str})</span>
+        </div>
+        """
+
+    # 2. News Items
+    news_items = fetch_live_crypto_news()
+    news_items_html = ""
+    if news_items:
+        for item in news_items:
+            news_items_html += f"""
+            <div style="display: inline-block; padding: 0 25px; font-weight: 500;">
+                <span style="color: #3b82f6; font-weight: 700;">[NEWS]</span> 
+                <a href="{item['link']}" target="_blank" style="color: #cbd5e1; text-decoration: none;">
+                    {item['title']}
+                </a>
+            </div>
+            """
+    else:
+        news_items_html = '<div style="display: inline-block; padding: 0 20px; color: #94a3b8;">Loading latest financial news stream...</div>'
+
+    # 3. Direct Top-Fixed Sticky HTML Injection
+    sticky_header_html = f"""
     <style>
-    body {{
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
+    /* Fix the header container directly to top of viewport */
+    .stApp > header {{
+        z-index: 999999 !important;
+    }}
+    .sticky-ticker-container {{
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        z-index: 999999;
         background-color: #0b0f19;
-        font-family: system-ui, -apple-system, sans-serif;
-    }}
-    .ticker-wrap {{
-        width: 100%;
-        overflow: hidden;
-        background-color: #0f172a;
-        padding: 6px 0;
         border-bottom: 1px solid #1e293b;
-        box-sizing: border-box;
-        height: 36px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        font-family: 'Inter', sans-serif;
     }}
-    .ticker-wrap:hover .ticker-move {{
-        animation-play-state: paused;
+    /* Offset main content so sticky top bar doesn't overlap titles */
+    .block-container {{
+        padding-top: 85px !important;
     }}
-    .ticker-move {{
-        display: inline-block;
-        white-space: nowrap;
-        padding-left: 100%;
-        animation: ticker 40s linear infinite;
-        font-size: 14px;
-        line-height: 24px;
-    }}
-    @keyframes ticker {{
-        0% {{ transform: translate3d(0, 0, 0); }}
-        100% {{ transform: translate3d(-100%, 0, 0); }}
-    }}
-
-    .news-wrap {{
+    .ticker-row {{
         width: 100%;
         overflow: hidden;
-        background-color: #1e1b4b;
+        white-space: nowrap;
         padding: 5px 0;
-        border-bottom: 1px solid #312e81;
-        box-sizing: border-box;
-        height: 32px;
     }}
-    .news-wrap:hover .news-move {{
-        animation-play-state: paused;
+    .price-row {{
+        background-color: #0f172a;
+        font-size: 13px;
+        border-bottom: 1px solid #1e293b;
     }}
-    .news-move {{
+    .news-row {{
+        background-color: #080d1a;
+        font-size: 12px;
+    }}
+    .marquee-content {{
         display: inline-block;
         white-space: nowrap;
         padding-left: 100%;
-        animation: news-ticker 45s linear infinite;
-        font-size: 13px;
-        line-height: 22px;
+        animation: marquee_anim 38s linear infinite;
     }}
-    @keyframes news-ticker {{
+    .marquee-content:hover {{
+        animation-play-state: paused;
+    }}
+    @keyframes marquee_anim {{
         0% {{ transform: translate3d(0, 0, 0); }}
         100% {{ transform: translate3d(-100%, 0, 0); }}
     }}
     </style>
-    <div class="ticker-wrap">
-        <div class="ticker-move">{full_price_text}</div>
-    </div>
-    <div class="news-wrap">
-        <div class="news-move">{full_news_text}</div>
+    
+    <div class="sticky-ticker-container">
+        <div class="ticker-row price-row">
+            <div class="marquee-content">{price_items_html}</div>
+        </div>
+        <div class="ticker-row news-row">
+            <div class="marquee-content">{news_items_html}</div>
+        </div>
     </div>
     """
-    st.components.v1.html(combined_html, height=75)
+    st.markdown(sticky_header_html, unsafe_allow_html=True)
 
-@st.cache_data(ttl=3)
+@st.cache_data(ttl=5)
 def fetch_all_market_prices():
-    """Fetches Binance market prices cached for 3 seconds."""
+    """Fetches Binance 24h market prices and percentage changes cached for 5 seconds."""
     try:
-        res = requests.get("https://api.binance.us/api/v3/ticker/price", timeout=3).json()
-        return {item["symbol"]: float(item["price"]) for item in res if "symbol" in item and "price" in item}
+        res = requests.get("https://api.binance.us/api/v3/ticker/24hr", timeout=3).json()
+        data = {}
+        for item in res:
+            sym = item.get("symbol")
+            price = item.get("lastPrice")
+            pct = item.get("priceChangePercent")
+            if sym and price is not None and pct is not None:
+                data[sym] = {
+                    "price": float(price),
+                    "change_pct": float(pct)
+                }
+        return data
     except Exception:
         return {}
 
@@ -288,53 +415,59 @@ def fetch_binance_candlesticks(symbol):
         print(f"⚠️ Error fetching candlestick data for {symbol}: {e}")
     return pd.DataFrame()
 
-def load_portfolio():
-    default_state = {
-        "cash_balance": 10000.00,
-        "invested_amount": 0.00,
-        "active_positions": [],
-        "closed_trades": [],
-        "latest_scan_decisions": [],
-        "equity_history": []
-    }
-    if os.path.exists(STATE_FILE):
+def load_portfolio(user_id=None):
+    if user_id is None:
+        user_id = st.session_state.get("user_id", 1)
+    
+    # Primary: fetch from SQLite database
+    portfolio = db.get_or_create_portfolio(user_id)
+    
+    # Merge local state file overlay if user is Guest (user_id=1) and state file exists
+    if user_id == 1 and os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for key, val in default_state.items():
-                    if key not in data:
-                        data[key] = val
-                return data
+                file_data = json.load(f)
+                for key in ["cash_balance", "active_positions", "closed_trades", "latest_scan_decisions", "equity_history", "bot_logs", "last_scan_time", "challenge_active", "challenge_start_time"]:
+                    if key in file_data and file_data[key]:
+                        portfolio[key] = file_data[key]
         except Exception:
-            return default_state
-    return default_state
+            pass
+            
+    return portfolio
+
+def save_portfolio(portfolio, user_id=None):
+    if user_id is None:
+        user_id = st.session_state.get("user_id", 1)
+    
+    # Save to SQLite database
+    db.save_portfolio_db(user_id, portfolio)
+    
+    # Also save to local JSON file for background bot synchronization if user is Guest (1)
+    if user_id == 1:
+        temp_file = f"{STATE_FILE}.tmp"
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(portfolio, f, indent=4)
+            os.replace(temp_file, STATE_FILE)
+        except Exception:
+            pass
 
 def render_live_dashboard():
-    # Force Streamlit iframe containers for tickers to stick to top of screen
-    st.markdown("""
-        <style>
-        div[data-testid="stCustomComponentV1"] {
-            position: sticky;
-            top: 0;
-            z-index: 99999;
-            background-color: #0b0f19;
-        }
-        
-        .block-container {
-            padding-top: 1rem !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
     portfolio = load_portfolio()
     market_prices = fetch_all_market_prices()
+    viewer_count = track_and_get_active_viewers()
 
-    # Single Combined Dual Ticker: Real-Time Crypto Prices + Live News Feed
-    render_dual_ticker_header(market_prices, WATCHLIST)
+    # Top Sticky Dual Ticker Header: Real-Time Crypto Prices (+/- %) + Live Financial News
+    render_sticky_dual_ticker_header(market_prices, WATCHLIST)
 
     col_title, col_btn = st.columns([0.65, 0.35])
     with col_title:
-        st.title("⚡ ChartPulse AI: $10,000 Trading Hub")
+        title_col, badge_col = st.columns([0.65, 0.35])
+        with title_col:
+            st.title("⚡ ChartPulse AI: $10,000 Trading Hub")
+        with badge_col:
+            st.write("")
+            render_live_viewer_badge(viewer_count)
         st.caption("v2.4.0 | Autonomous Gemini AI scanning 20 crypto assets every 60s with full technical momentum analysis.")
 
     is_challenge_active = portfolio.get("challenge_active", False)
@@ -413,7 +546,8 @@ def render_live_dashboard():
     # Dynamic calculation of total active market value
     active_value = 0.0
     for pos in active_positions:
-        cur_price = market_prices.get(pos["symbol"], pos.get("entry_price", 1.0))
+        p_info = market_prices.get(pos["symbol"], pos.get("entry_price", 1.0))
+        cur_price = p_info.get("price", pos.get("entry_price", 1.0)) if isinstance(p_info, dict) else float(p_info)
         qty = pos.get("allocated_amount", 0.0) / pos.get("entry_price", 1.0) if pos.get("entry_price", 0) > 0 else 0
         active_value += qty * cur_price
 
@@ -474,7 +608,8 @@ def render_live_dashboard():
             # Ultra-Clean, High-Contrast Live Price Line Chart
             df_klines = fetch_binance_candlesticks(selected_symbol)
             if not df_klines.empty:
-                cur_p = market_prices.get(selected_symbol, df_klines["close"].iloc[-1])
+                p_raw = market_prices.get(selected_symbol, df_klines["close"].iloc[-1])
+                cur_p = p_raw.get("price", df_klines["close"].iloc[-1]) if isinstance(p_raw, dict) else float(p_raw)
                 entry_p = float(selected_pos.get("entry_price", 0))
                 tp_p = float(selected_pos.get("take_profit", 0)) if selected_pos.get("take_profit") else None
                 sl_p = float(selected_pos.get("stop_loss", 0)) if selected_pos.get("stop_loss") else None
@@ -567,7 +702,8 @@ def render_live_dashboard():
             st.subheader("📋 Active Open Positions & Instant Actions")
             for p in active_positions:
                 sym = p.get("symbol", "N/A")
-                cur = market_prices.get(sym, p.get("entry_price", 0.0))
+                p_info = market_prices.get(sym, p.get("entry_price", 0.0))
+                cur = p_info.get("price", p.get("entry_price", 0.0)) if isinstance(p_info, dict) else float(p_info)
                 entry_p = p.get("entry_price", 1.0)
                 allocated = p.get("allocated_amount", 0.0)
                 qty = allocated / entry_p if entry_p > 0 else 0.0
@@ -902,7 +1038,55 @@ def render_live_dashboard():
 
 # Sidebar Controls & Bot Parameter Sliders
 st.sidebar.title("⚡ Control Panel")
-st.sidebar.caption("ChartPulse AI v2.3.0 Pro")
+st.sidebar.caption("ChartPulse AI v2.4.0 Pro")
+
+# --- User Authentication Sidebar Section ---
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = 1
+
+active_uid = st.session_state["user_id"]
+active_uname = db.get_username(active_uid)
+
+with st.sidebar.expander("👤 User Account & Authentication", expanded=(active_uid == 1)):
+    if active_uid != 1:
+        st.success(f"Logged in as: **{active_uname}**")
+        if st.button("🚪 Logout", use_container_width=True):
+            st.session_state["user_id"] = 1
+            st.toast("Logged out. Continuing as Guest.", icon="👋")
+            st.rerun()
+    else:
+        st.info("Currently viewing as **Guest** (Default Account)")
+        auth_mode = st.radio("Account Action:", ["Login", "Sign Up"], horizontal=True)
+        
+        if auth_mode == "Login":
+            login_user = st.text_input("Username", key="auth_login_user")
+            login_pwd = st.text_input("Password", type="password", key="auth_login_pwd")
+            if st.button("🔑 Log In", type="primary", use_container_width=True):
+                if login_user and login_pwd:
+                    res = db.authenticate_user(login_user.strip(), login_pwd)
+                    if res:
+                        u_id, u_name = res
+                        st.session_state["user_id"] = u_id
+                        st.toast(f"Welcome back, {u_name}!", icon="🎉")
+                        st.rerun()
+                    else:
+                        st.error("Invalid username or password.")
+                else:
+                    st.warning("Please enter username and password.")
+        else: # Sign Up
+            signup_user = st.text_input("New Username", key="auth_signup_user")
+            signup_pwd = st.text_input("New Password", type="password", key="auth_signup_pwd")
+            if st.button("📝 Register Account", type="primary", use_container_width=True):
+                if signup_user and signup_pwd:
+                    new_uid = db.register_user(signup_user.strip(), signup_pwd)
+                    if new_uid:
+                        st.session_state["user_id"] = new_uid
+                        st.toast(f"Account created! Welcome, {signup_user.strip()}!", icon="🚀")
+                        st.rerun()
+                    else:
+                        st.error("Username already exists or registration failed.")
+                else:
+                    st.warning("Please fill in all registration fields.")
 
 if st.sidebar.button("🔄 Sync & Refresh UI", use_container_width=True):
     st.rerun()
@@ -1002,11 +1186,8 @@ if not is_challenge_active:
 
     if new_settings != cur_settings:
         portfolio_data["bot_settings"] = new_settings
-        temp_file = f"{STATE_FILE}.tmp"
         try:
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(portfolio_data, f, indent=4)
-            os.replace(temp_file, STATE_FILE)
+            save_portfolio(portfolio_data)
             st.sidebar.success("✅ Settings Saved!")
         except Exception as e:
             st.sidebar.error(f"Error saving settings: {e}")
