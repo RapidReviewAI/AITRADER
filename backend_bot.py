@@ -30,7 +30,7 @@ try:
 except Exception as _e:
     client = None
 
-MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
+MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
 
 # Top 20 High-Volume Crypto Assets Watchlist
