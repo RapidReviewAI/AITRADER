@@ -525,22 +525,38 @@ def render_live_dashboard():
         last_scan = portfolio.get("last_scan_time", "N/A")
         bot_logs = portfolio.get("bot_logs", [])
 
-        s_col1, s_col2, s_col3 = st.columns(3)
+        # Dynamic countdown calculation for next scan
+        import time as _time
+        seconds_left = 60
+        if last_scan != "N/A":
+            try:
+                last_dt = datetime.strptime(last_scan, "%Y-%m-%d %H:%M:%S")
+                elapsed = (_time.time() - last_dt.timestamp())
+                seconds_left = max(0, int(60 - (elapsed % 60)))
+            except Exception:
+                seconds_left = 60
+
+        s_col1, s_col2, s_col3, s_col4 = st.columns(4)
         with s_col1:
             with st.container(border=True):
                 st.caption("ENGINE HEALTH")
                 st.markdown("### 🟢 ONLINE")
-                st.caption("Auto-Threaded (60s Interval)")
+                st.caption("Auto-Threaded")
         with s_col2:
             with st.container(border=True):
-                st.caption("LAST COMPLETED SCAN")
+                st.caption("LAST SCAN TIME")
                 st.markdown(f"### {last_scan.split()[-1] if ' ' in last_scan else last_scan}")
                 st.caption(f"Date: {last_scan.split()[0] if ' ' in last_scan else 'Today'}")
         with s_col3:
             with st.container(border=True):
-                st.caption("RECENT ACTIVITY EVENTS")
+                st.caption("NEXT SCAN IN")
+                st.markdown(f"### ⏳ ~{seconds_left}s")
+                st.caption("Cycle Interval: 60s")
+        with s_col4:
+            with st.container(border=True):
+                st.caption("ACTIVITY LOGS")
                 st.markdown(f"### {len(bot_logs)} Events")
-                st.caption("Log Retention: 50 Entries")
+                st.caption("Retention: 50 Entries")
 
         st.markdown("### 🖥️ Real-Time Engine Operations Console")
         if bot_logs:
