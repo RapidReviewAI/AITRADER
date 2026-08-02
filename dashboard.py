@@ -185,31 +185,10 @@ st.markdown("""
         font-weight: 600;
         font-size: 13px;
     }
-    .stream-watermark {
-        position: fixed;
-        top: 20px;
-        right: 30px;
-        z-index: 9999;
-        background: rgba(15, 23, 42, 0.85);
-        border: 1px solid rgba(59, 130, 246, 0.4);
-        padding: 8px 16px;
-        border-radius: 8px;
-        color: #f8fafc;
-        font-family: 'Inter', sans-serif;
-        font-size: 13px;
-        font-weight: 700;
-        backdrop-filter: blur(6px);
-    }
-    .stream-watermark span {
-        color: #3b82f6;
-    }
     .block-container, .main .block-container {
-        padding-top: 85px !important;
+        padding-top: 1rem !important;
     }
     </style>
-    <div class="stream-watermark">
-        ⚡ <span>ChartPulse AI v2.2</span> | Interactive Live Charts
-    </div>
 """, unsafe_allow_html=True)
 
 WATCHLIST = [
@@ -314,33 +293,24 @@ def render_sticky_dual_ticker_header(market_data, watchlist):
     else:
         news_items_html = '<div style="display: inline-block; padding: 0 20px; color: #94a3b8;">Loading latest financial news stream...</div>'
 
-    # 3. Direct Top-Fixed Sticky HTML Injection
+    # 3. Clean Streamlit Container Marquee Injection
     sticky_header_html = f"""
     <style>
-    /* Fix the header container directly to top of viewport */
-    .stApp > header {{
-        z-index: 999999 !important;
-    }}
-    .sticky-ticker-container {{
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        z-index: 999999;
+    .ticker-container {{
+        width: 100%;
         background-color: #0b0f19;
-        border-bottom: 1px solid #1e293b;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         font-family: 'Inter', sans-serif;
-    }}
-    /* Offset main content so sticky top bar doesn't overlap titles */
-    .block-container {{
-        padding-top: 85px !important;
+        margin-bottom: 15px;
+        overflow: hidden;
     }}
     .ticker-row {{
         width: 100%;
         overflow: hidden;
         white-space: nowrap;
-        padding: 5px 0;
+        padding: 6px 0;
     }}
     .price-row {{
         background-color: #0f172a;
@@ -366,7 +336,7 @@ def render_sticky_dual_ticker_header(market_data, watchlist):
     }}
     </style>
     
-    <div class="sticky-ticker-container">
+    <div class="ticker-container">
         <div class="ticker-row price-row">
             <div class="marquee-content">{price_items_html}</div>
         </div>
@@ -375,7 +345,8 @@ def render_sticky_dual_ticker_header(market_data, watchlist):
         </div>
     </div>
     """
-    st.markdown(sticky_header_html, unsafe_allow_html=True)
+    with st.container():
+        st.markdown(sticky_header_html, unsafe_allow_html=True)
 
 @st.cache_data(ttl=5)
 def fetch_all_market_prices():
