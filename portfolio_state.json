@@ -1,6 +1,6 @@
 {
     "cash_balance": 2435.3884210526317,
-    "invested_amount": 7548.2371571470785,
+    "invested_amount": 7548.619196494946,
     "active_positions": [
         {
             "symbol": "ETHUSDT",
@@ -96,96 +96,96 @@
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "RSI overbought; No volume",
-            "timestamp": "02:55:04"
+            "rationale": "RSI overbought; Zero volume",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "ETHUSDT",
             "action": "NO_TRADE",
-            "confidence": 40,
-            "target_entry": 1876.62,
+            "confidence": 50,
+            "target_entry": 1877.23,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "RSI high; Zero volume",
-            "timestamp": "02:55:04"
+            "rationale": "Low volume; RSI high",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "SOLUSDT",
             "action": "NO_TRADE",
-            "confidence": 40,
-            "target_entry": 73.52,
+            "confidence": 60,
+            "target_entry": 73.48,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "No volume; RSI neutral",
-            "timestamp": "02:55:04"
+            "rationale": "High volume; RSI neutral",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "BNBUSDT",
             "action": "NO_TRADE",
-            "confidence": 30,
+            "confidence": 40,
             "target_entry": 584.65,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "Flat volume; RSI mid",
-            "timestamp": "02:55:04"
+            "rationale": "Zero volume; No momentum",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "XRPUSDT",
             "action": "NO_TRADE",
-            "confidence": 30,
+            "confidence": 40,
             "target_entry": 1.08,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "No volume; RSI high",
-            "timestamp": "02:55:04"
+            "rationale": "Low volume; RSI high",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "ADAUSDT",
             "action": "NO_TRADE",
-            "confidence": 35,
+            "confidence": 45,
             "target_entry": 0.19,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "Low volume; RSI overbought",
-            "timestamp": "02:55:04"
+            "rationale": "RSI high; Low volume",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "AVAXUSDT",
             "action": "NO_TRADE",
-            "confidence": 30,
+            "confidence": 40,
             "target_entry": 6.59,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "No volume; RSI neutral",
-            "timestamp": "02:55:04"
+            "rationale": "Zero volume; RSI neutral",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "DOGEUSDT",
             "action": "NO_TRADE",
-            "confidence": 25,
+            "confidence": 30,
             "target_entry": 0.07,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "Low volume; RSI flat",
-            "timestamp": "02:55:04"
+            "rationale": "Zero volume; Stagnant price",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "LINKUSDT",
             "action": "NO_TRADE",
-            "confidence": 25,
+            "confidence": 30,
             "target_entry": 8.37,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "No volume; RSI neutral",
-            "timestamp": "02:55:04"
+            "rationale": "Zero volume; RSI neutral",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "NEARUSDT",
@@ -195,19 +195,19 @@
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "RSI zero error; No volume",
-            "timestamp": "02:55:04"
+            "rationale": "Bad data RSI zero; No volume",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "SUIUSDT",
             "action": "NO_TRADE",
-            "confidence": 20,
+            "confidence": 30,
             "target_entry": 0.69,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "RSI neutral; No volume",
-            "timestamp": "02:55:04"
+            "rationale": "Zero volume; Neutral RSI",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "APTUSDT",
@@ -217,19 +217,30 @@
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "RSI zero error; No volume",
-            "timestamp": "02:55:04"
+            "rationale": "Bad data RSI zero; No volume",
+            "timestamp": "02:56:18"
         },
         {
             "symbol": "ARBUSDT",
             "action": "NO_TRADE",
-            "confidence": 30,
+            "confidence": 40,
             "target_entry": 0.08,
             "take_profit": 0.0,
             "stop_loss": 0.0,
             "suggested_alloc": 0.0,
-            "rationale": "RSI extreme; No volume",
-            "timestamp": "02:55:04"
+            "rationale": "RSI extremely overbought; No volume",
+            "timestamp": "02:56:18"
+        },
+        {
+            "symbol": "OPUSDT",
+            "action": "NO_TRADE",
+            "confidence": 10,
+            "target_entry": 0.08,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Bad data RSI zero; No volume",
+            "timestamp": "02:56:18"
         }
     ],
     "equity_history": [
@@ -634,6 +645,12 @@
             "cash": 2435.39,
             "invested": 7548.24,
             "total_equity": 9983.63
+        },
+        {
+            "timestamp": "02:56:18",
+            "cash": 2435.39,
+            "invested": 7548.62,
+            "total_equity": 9984.01
         }
     ],
     "bot_settings": {

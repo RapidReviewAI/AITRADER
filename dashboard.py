@@ -234,7 +234,15 @@ def render_live_dashboard():
                 }
                 with open(STATE_FILE, "w", encoding="utf-8") as f:
                     json.dump(new_state, f, indent=4)
-                st.success("🏆 48-Hour Challenge Initiated! Criteria locked in.")
+                
+                # Trigger instant immediate market scan pass upon challenge start
+                try:
+                    import backend_bot
+                    threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                except Exception:
+                    pass
+
+                st.success("🏆 48-Hour Challenge Initiated! Initial instant market scan launched.")
                 st.rerun()
         else:
             if st.button("🔴 RESET & STOP CHALLENGE", use_container_width=True):

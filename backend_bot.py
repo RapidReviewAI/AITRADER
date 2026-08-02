@@ -252,220 +252,192 @@ def update_equity_snapshot(portfolio, live_prices):
     if len(portfolio["equity_history"]) > 100:
         portfolio["equity_history"] = portfolio["equity_history"][-100:]
 
+def run_single_scan_pass():
+    global ACTIVE_MODEL
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    print(f"\n--- [Scan Cycle Start: {timestamp}] ---")
+    
+    portfolio = load_portfolio()
+    manage_active_positions(portfolio)
+
+    if "bot_logs" not in portfolio:
+        portfolio["bot_logs"] = []
+
+    def log_bot_event(msg):
+        print(msg)
+        portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+        if len(portfolio["bot_logs"]) > 50:
+            portfolio["bot_logs"] = portfolio["bot_logs"][:50]
+
+    log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL}")
+
+    batch_payload = []
+    live_prices = {}
+    
+    for sym in WATCHLIST:
+        metrics = fetch_binance_klines(sym)
+        if metrics:
+            live_prices[sym] = metrics["price"]
+            batch_payload.append(f"SYMBOL: {sym}\nDATA: {metrics['raw_candles_summary']}\n---")
+
+    log_bot_event(f"📡 Processed indicators for {len(batch_payload)} tickers.")
+
+    if batch_payload:
+        try:
+            header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
+            prompt = header + "\n".join(batch_payload)
+            
+            log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL})...")
+            max_retries = 3
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = client.models.generate_content(
+                        model=ACTIVE_MODEL,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_INSTRUCTIONS,
+                            response_mime_type="application/json",
+                            temperature=0.2,
+                            max_output_tokens=2048
+                        )
+                    )
+                    break
+                except Exception as model_err:
+                    err_str = str(model_err)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                        wait_sec = (attempt + 1) * 10
+                        next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
+                        ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
+                        log_bot_event(f"⚠️ Quota rate limit (429). Switching to {ACTIVE_MODEL} & retrying in {wait_sec}s...")
+                        time.sleep(wait_sec)
+                    elif "404" in err_str or "NOT_FOUND" in err_str:
+                        log_bot_event(f"⚠️ Model {ACTIVE_MODEL} 404 Not Found. Auto-discovering fallback...")
+                        ACTIVE_MODEL = get_valid_fallback_model(client)
+                        time.sleep(5)
+                    else:
+                        log_bot_event(f"❌ Gemini API Error: {err_str[:120]}")
+                        raise model_err
+
+            
+            if response is None or not getattr(response, 'text', None):
+                log_bot_event("⚠️ No valid response from Gemini after retries. Skipping cycle.")
+            else:
+                raw_text = response.text.strip()
+                if raw_text.startswith("```json"):
+                    raw_text = raw_text[7:]
+                if raw_text.startswith("```"):
+                    raw_text = raw_text[3:]
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                raw_text = raw_text.strip()
+
+                try:
+                    signals = json.loads(raw_text)
+                except json.JSONDecodeError:
+                    if raw_text.startswith("[") and not raw_text.endswith("]"):
+                        last_complete_obj = raw_text.rfind("}")
+                        if last_complete_obj != -1:
+                            repaired_text = raw_text[:last_complete_obj+1] + "]"
+                            try:
+                                signals = json.loads(repaired_text)
+                                log_bot_event("🔧 Auto-repaired truncated JSON response from AI.")
+                            except Exception:
+                                signals = None
+                        else:
+                            signals = None
+                    else:
+                        signals = None
+                if isinstance(signals, list):
+                    decisions_log = []
+                    for s in signals:
+                        trade = s.get("trade_details") or {}
+                        decisions_log.append({
+                            "symbol": s.get("symbol", "N/A"),
+                            "action": s.get("action", "NO_TRADE"),
+                            "confidence": s.get("confidence_score", 0),
+                            "target_entry": s.get("target_entry_price", trade.get("entry_price", "N/A")),
+                            "take_profit": trade.get("take_profit", "N/A"),
+                            "stop_loss": trade.get("stop_loss", "N/A"),
+                            "suggested_alloc": trade.get("allocated_amount", "N/A"),
+                            "rationale": "; ".join(s.get("technical_rationale", []) if isinstance(s.get("technical_rationale"), list) else [str(s.get("technical_rationale", ""))]),
+                            "timestamp": datetime.now().strftime("%H:%M:%S")
+                        })
+                    portfolio["latest_scan_decisions"] = decisions_log
+                    
+                    settings = portfolio.get("bot_settings", {
+                        "min_confidence": 75,
+                        "take_profit_pct": 4.0,
+                        "stop_loss_pct": 2.0,
+                        "max_positions": 5,
+                        "max_trade_size": 3000.0
+                    })
+                    min_conf = settings.get("min_confidence", 75)
+                    tp_pct = settings.get("take_profit_pct", 4.0) / 100.0
+                    sl_pct = settings.get("stop_loss_pct", 2.0) / 100.0
+                    max_pos = settings.get("max_positions", 5)
+                    max_alloc_cap = settings.get("max_trade_size", 3000.0)
+
+                    valid_buys = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_BUY" and float(s.get("confidence_score", 0) or 0) >= min_conf]
+                    valid_buys = sorted(valid_buys, key=lambda x: float(x.get("confidence_score", 0) or 0), reverse=True)
+
+                    for signal in valid_buys:
+                        sym = signal.get("symbol")
+                        confidence = signal.get("confidence_score", 0)
+                        
+                        already_in = any(p["symbol"] == sym for p in portfolio["active_positions"])
+                        if len(portfolio["active_positions"]) < max_pos and not already_in:
+                            trade = signal.get("trade_details") or {}
+                            entry_pr = live_prices.get(sym, trade.get("entry_price", 0.0))
+                            
+                            suggested_alloc = float(trade.get("allocated_amount") or 2000.0)
+                            alloc = min(suggested_alloc, max_alloc_cap, portfolio["cash_balance"])
+
+                            if entry_pr > 0 and alloc >= 100.0:
+                                take_val = float(trade.get("take_profit") or (entry_pr * (1 + tp_pct)))
+                                stop_val = float(trade.get("stop_loss") or (entry_pr * (1 - sl_pct)))
+
+                                portfolio["cash_balance"] -= alloc
+                                portfolio["invested_amount"] += alloc
+
+                                portfolio["active_positions"].append({
+                                    "symbol": sym,
+                                    "entry_price": entry_pr,
+                                    "allocated_amount": alloc,
+                                    "stop_loss": stop_val,
+                                    "take_profit": take_val,
+                                    "risk_reward": trade.get("risk_reward_ratio", "1:2"),
+                                    "rationale": "; ".join(signal.get("technical_rationale", []) if isinstance(signal.get("technical_rationale"), list) else [str(signal.get("technical_rationale", ""))]),
+                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                })
+                                log_bot_event(f"⚡ EXECUTED POSITION BUY: ${alloc:,.2f} in {sym} (Confidence: {confidence}% | TP: +{settings.get('take_profit_pct')}%, SL: -{settings.get('stop_loss_pct')}%)")
+                            else:
+                                log_bot_event(f"⚠️ Could not execute buy for {sym}: price data missing or allocation below minimum.")
+                        elif already_in:
+                            log_bot_event(f"ℹ️ Buy signal for {sym} skipped (position already open).")
+                    
+                    if not valid_buys:
+                        log_bot_event(f"💤 No buy triggers met minimum confidence threshold (>= {min_conf}%).")
+                else:
+                    log_bot_event("⚠️ Unexpected response format from AI.")
+
+        except Exception as e:
+            log_bot_event(f"❌ Scan Error: {e}")
+
+    update_equity_snapshot(portfolio, live_prices)
+    portfolio["last_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    save_portfolio(portfolio)
+
 def main():
     global ACTIVE_MODEL
-    print(f"🚀 ChartPulse AI Engine v2.0.0 Active [{ACTIVE_MODEL}]")
-    print(f"⚡ API Quota Optimized Mode: Scanning 10 assets every {SCAN_INTERVAL_SECONDS}s")
+    print(f"ChartPulse AI Engine v2.0.0 Active [{ACTIVE_MODEL}]")
+    print(f"API Quota Optimized Mode: Scanning 20 assets every {SCAN_INTERVAL_SECONDS}s")
     
     print("⏳ Engine initialized. Initial scan starting in 5 seconds...")
     time.sleep(5)
     
     while True:
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"\n--- [Scan Cycle Start: {timestamp}] ---")
-        
-        portfolio = load_portfolio()
-        manage_active_positions(portfolio)
-
-        if "bot_logs" not in portfolio:
-            portfolio["bot_logs"] = []
-
-        def log_bot_event(msg):
-            print(msg)
-            portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-            if len(portfolio["bot_logs"]) > 50:
-                portfolio["bot_logs"] = portfolio["bot_logs"][:50]
-
-        log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL}")
-
-        batch_payload = []
-        live_prices = {}
-        
-        for sym in WATCHLIST:
-            metrics = fetch_binance_klines(sym)
-            if metrics:
-                live_prices[sym] = metrics["price"]
-                batch_payload.append(f"SYMBOL: {sym}\nDATA: {metrics['raw_candles_summary']}\n---")
-
-        log_bot_event(f"📡 Processed indicators for {len(batch_payload)} tickers.")
-
-        if batch_payload:
-            try:
-                header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
-                prompt = header + "\n".join(batch_payload)
-                
-                log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL})...")
-                max_retries = 3
-                response = None
-                for attempt in range(max_retries):
-                    try:
-                        response = client.models.generate_content(
-                            model=ACTIVE_MODEL,
-                            contents=prompt,
-                            config=types.GenerateContentConfig(
-                                system_instruction=SYSTEM_INSTRUCTIONS,
-                                response_mime_type="application/json",
-                                temperature=0.2,
-                                max_output_tokens=2048
-                            )
-                        )
-                        break
-                    except Exception as model_err:
-                        err_str = str(model_err)
-                        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                            wait_sec = (attempt + 1) * 10
-                            next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
-                            ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
-                            log_bot_event(f"⚠️ Quota rate limit (429). Switching to {ACTIVE_MODEL} & retrying in {wait_sec}s...")
-                            time.sleep(wait_sec)
-                        elif "404" in err_str or "NOT_FOUND" in err_str:
-                            log_bot_event(f"⚠️ Model {ACTIVE_MODEL} 404 Not Found. Auto-discovering fallback...")
-                            ACTIVE_MODEL = get_valid_fallback_model(client)
-                            time.sleep(5)
-                        else:
-                            log_bot_event(f"❌ Gemini API Error: {err_str[:120]}")
-                            raise model_err
-
-                
-                if response is None or not getattr(response, 'text', None):
-                    log_bot_event("⚠️ No valid response from Gemini after retries. Skipping cycle.")
-                else:
-                    raw_text = response.text.strip()
-                    # Clean markdown codeblocks if present
-                    if raw_text.startswith("```json"):
-                        raw_text = raw_text[7:]
-                    if raw_text.startswith("```"):
-                        raw_text = raw_text[3:]
-                    if raw_text.endswith("```"):
-                        raw_text = raw_text[:-3]
-                    raw_text = raw_text.strip()
-
-                    try:
-                        signals = json.loads(raw_text)
-                    except json.JSONDecodeError:
-                        # Auto-repair unterminated JSON array if truncated mid-stream
-                        if raw_text.startswith("[") and not raw_text.endswith("]"):
-                            last_complete_obj = raw_text.rfind("}")
-                            if last_complete_obj != -1:
-                                repaired_text = raw_text[:last_complete_obj+1] + "]"
-                                try:
-                                    signals = json.loads(repaired_text)
-                                    print(" 🔧 Auto-repaired truncated JSON response from AI.")
-                                except Exception:
-                                    signals = None
-                            else:
-                                signals = None
-                        else:
-                            signals = None
-                    if isinstance(signals, list):
-                        decisions_log = []
-                        for s in signals:
-                            trade = s.get("trade_details") or {}
-                            decisions_log.append({
-                                "symbol": s.get("symbol", "N/A"),
-                                "action": s.get("action", "NO_TRADE"),
-                                "confidence": s.get("confidence_score", 0),
-                                "target_entry": s.get("target_entry_price", trade.get("entry_price", "N/A")),
-                                "take_profit": trade.get("take_profit", "N/A"),
-                                "stop_loss": trade.get("stop_loss", "N/A"),
-                                "suggested_alloc": trade.get("allocated_amount", "N/A"),
-                                "rationale": "; ".join(s.get("technical_rationale", []) if isinstance(s.get("technical_rationale"), list) else [str(s.get("technical_rationale", ""))]),
-                                "timestamp": datetime.now().strftime("%H:%M:%S")
-                            })
-                        portfolio["latest_scan_decisions"] = decisions_log
-                        
-                        # Load dynamic slider settings from portfolio state
-                        settings = portfolio.get("bot_settings", {
-                            "min_confidence": 75,
-                            "take_profit_pct": 4.0,
-                            "stop_loss_pct": 2.0,
-                            "max_positions": 5,
-                            "max_trade_size": 3000.0
-                        })
-                        min_conf = settings.get("min_confidence", 75)
-                        tp_pct = settings.get("take_profit_pct", 4.0) / 100.0
-                        sl_pct = settings.get("stop_loss_pct", 2.0) / 100.0
-                        max_pos = settings.get("max_positions", 5)
-                        max_alloc_cap = settings.get("max_trade_size", 3000.0)
-
-                        valid_buys = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_BUY" and float(s.get("confidence_score", 0) or 0) >= min_conf]
-                        valid_buys = sorted(valid_buys, key=lambda x: float(x.get("confidence_score", 0) or 0), reverse=True)
-                        
-                        for signal in valid_buys:
-                            sym = signal.get("symbol")
-                            confidence = signal.get("confidence_score", 0)
-                            current_active_count = len(portfolio.get("active_positions", []))
-                            already_in = any(p["symbol"] == sym for p in portfolio.get("active_positions", []))
-                            
-                            # Dynamic Limit: Maximum active positions simultaneously
-                            if current_active_count >= max_pos:
-                                print(f" ✋ Buy signal for {sym} skipped (Max active positions limit [{max_pos}] reached).")
-                                break
-
-                            if not already_in and portfolio["cash_balance"] > 100.0:
-                                trade = signal.get("trade_details") or {}
-                                try:
-                                    suggested_alloc = float(trade.get("allocated_amount") or (portfolio["cash_balance"] * 0.25))
-                                except (ValueError, TypeError):
-                                    suggested_alloc = portfolio["cash_balance"] * 0.25
-                                
-                                # Dynamic Limit: Max 30% of available cash per trade, capped at max_trade_size slider setting
-                                max_allowed_alloc = min(portfolio["cash_balance"] * 0.30, max_alloc_cap)
-                                alloc = min(suggested_alloc, max_allowed_alloc)
-                                
-                                if alloc >= 50.0 and (sym in live_prices or "entry_price" in trade):
-                                    portfolio["cash_balance"] -= alloc
-                                    portfolio["invested_amount"] += alloc
-                                    
-                                    try:
-                                        entry_pr = float(trade.get("entry_price") or live_prices.get(sym, 1.0))
-                                    except (ValueError, TypeError):
-                                        entry_pr = live_prices.get(sym, 1.0)
-
-                                    # Use custom Take Profit % and Stop Loss % if configured by user sliders
-                                    try:
-                                        stop_val = float(trade.get("stop_loss")) if trade.get("stop_loss") else entry_pr * (1 - sl_pct)
-                                    except (ValueError, TypeError):
-                                        stop_val = entry_pr * (1 - sl_pct)
-
-                                    try:
-                                        take_val = float(trade.get("take_profit")) if trade.get("take_profit") else entry_pr * (1 + tp_pct)
-                                    except (ValueError, TypeError):
-                                        take_val = entry_pr * (1 + tp_pct)
-
-                                    # Override with exact slider percentages if user specified strict custom targets
-                                    stop_val = round(entry_pr * (1 - sl_pct), 4)
-                                    take_val = round(entry_pr * (1 + tp_pct), 4)
-                                    
-                                    portfolio["active_positions"].append({
-                                        "symbol": sym,
-                                        "entry_price": entry_pr,
-                                        "allocated_amount": alloc,
-                                        "stop_loss": stop_val,
-                                        "take_profit": take_val,
-                                        "risk_reward": trade.get("risk_reward_ratio", "1:2"),
-                                        "rationale": "; ".join(signal.get("technical_rationale", []) if isinstance(signal.get("technical_rationale"), list) else [str(signal.get("technical_rationale", ""))]),
-                                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    })
-                                    log_bot_event(f"⚡ EXECUTED POSITION BUY: ${alloc:,.2f} in {sym} (Confidence: {confidence}% | TP: +{settings.get('take_profit_pct')}%, SL: -{settings.get('stop_loss_pct')}%)")
-                                 else:
-                                     log_bot_event(f"⚠️ Could not execute buy for {sym}: price data missing or allocation below minimum.")
-                            elif already_in:
-                                log_bot_event(f"ℹ️ Buy signal for {sym} skipped (position already open).")
-                        
-                        if not valid_buys:
-                            log_bot_event(f"💤 No buy triggers met minimum confidence threshold (>= {min_conf}%).")
-                    else:
-                        log_bot_event("⚠️ Unexpected response format from AI.")
-
-            except Exception as e:
-                log_bot_event(f"❌ Scan Error: {e}")
-
-        update_equity_snapshot(portfolio, live_prices)
-        portfolio["last_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        save_portfolio(portfolio)
-
-        log_bot_event(f"⏱️ Sleeping {SCAN_INTERVAL_SECONDS}s until next scan...")
+        run_single_scan_pass()
         time.sleep(SCAN_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
