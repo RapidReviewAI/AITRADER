@@ -394,14 +394,20 @@ def load_portfolio(user_id=None):
     # Primary: fetch from SQLite database
     portfolio = db.get_or_create_portfolio(user_id)
     
-    # Merge local state file overlay if user is Guest (user_id=1) and state file exists
+    # Merge local state file overlay ONLY if user is Guest (user_id=1) and state file exists
     if user_id == 1 and os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
                 file_data = json.load(f)
-                for key in ["cash_balance", "active_positions", "closed_trades", "latest_scan_decisions", "equity_history", "bot_logs", "last_scan_time", "challenge_active", "challenge_start_time"]:
+                for key in ["active_positions", "closed_trades", "latest_scan_decisions", "equity_history", "bot_logs", "last_scan_time", "challenge_active", "challenge_start_time"]:
                     if key in file_data and file_data[key]:
                         portfolio[key] = file_data[key]
+                if "cash_balance" in file_data and file_data["cash_balance"] is not None:
+                    portfolio["cash_balance"] = file_data["cash_balance"]
+                # Recalculate guest cash_balance dynamically if positions exist and cash_balance equals initial $10,000
+                total_invested = sum(p.get("allocated_amount", 0.0) for p in portfolio.get("active_positions", []))
+                if total_invested > 0 and portfolio.get("cash_balance", 10000.0) == 10000.0:
+                    portfolio["cash_balance"] = max(0.0, 10000.0 - total_invested)
         except Exception:
             pass
             
@@ -1054,6 +1060,7 @@ with st.sidebar.expander("👤 User Account & Authentication", expanded=(active_
                     user_id = db.register_user(signup_user.strip(), signup_pwd)
                     if user_id:
                         st.session_state["user_id"] = user_id
+                        st.session_state["username"] = signup_user.strip()
                         st.success("Account created successfully!")
                         st.toast(f"Account created! Welcome, {signup_user.strip()}!", icon="🚀")
                         st.rerun()
