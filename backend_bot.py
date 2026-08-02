@@ -42,7 +42,18 @@ WATCHLIST = [
 ]
 
 STATE_FILE = "portfolio_state.json"
+ERROR_LOG_FILE = "error_log.txt"
 SCAN_INTERVAL_SECONDS = 60  # 60-second scan interval backed by multi-model failover rotation
+
+def log_error_to_file(error_msg):
+    """Appends backend errors to error_log.txt with full date & timestamp."""
+    try:
+        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_entry = f"[{timestamp_str}] {error_msg}\n"
+        with open(ERROR_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(formatted_entry)
+    except Exception as e:
+        print(f"❌ Failed writing to {ERROR_LOG_FILE}: {e}")
 
 def load_portfolio():
     default_state = {
@@ -308,6 +319,10 @@ def run_single_scan_pass(passed_api_key=None):
         if len(portfolio["bot_logs"]) > 50:
             portfolio["bot_logs"] = portfolio["bot_logs"][:50]
         save_portfolio(portfolio)
+        
+        # Log all errors/exceptions to error_log.txt with full date and time
+        if "❌" in msg or "⚠️" in msg or "Error" in msg or "CRITICAL" in msg:
+            log_error_to_file(msg)
 
     log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL}")
 

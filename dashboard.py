@@ -735,7 +735,7 @@ def render_live_dashboard():
         else:
             st.info("Initializing engine console logs... Initial scan cycle in progress.")
 
-        with st.expander("📡 Raw Backend Live Telemetry & API Payload Feed", expanded=True):
+        with st.expander("📡 Raw Backend Live Telemetry & API Payload Feed", expanded=False):
             st.caption("Direct raw inspection of backend JSON state payload, Gemini stream text, and engine parameters.")
             st.json({
                 "last_scan_timestamp": last_scan,
@@ -743,6 +743,21 @@ def render_live_dashboard():
                 "latest_raw_signals": portfolio.get("latest_scan_decisions", []),
                 "recent_raw_log_stream": bot_logs[:10]
             })
+
+        with st.expander("📄 Persistent Error Log File (error_log.txt)", expanded=True if error_logs else False):
+            st.caption("Full persistent error log history saved to disk with exact dates and timestamps.")
+            if os.path.exists("error_log.txt"):
+                try:
+                    with open("error_log.txt", "r", encoding="utf-8") as ef:
+                        err_content = ef.read()
+                    if err_content.strip():
+                        st.code(err_content, language="text")
+                    else:
+                        st.info("No persistent errors recorded in error_log.txt.")
+                except Exception as e:
+                    st.error(f"Could not read error_log.txt: {e}")
+            else:
+                st.info("error_log.txt file not created yet (no errors encountered).")
 
     with tab_brain:
         st.subheader("🧠 Gemini AI Brain - Detailed Scan Analysis")
