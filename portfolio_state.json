@@ -98,6 +98,7 @@
         }
     ],
     "bot_logs": [
+        "[12:03:04] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[11:57:55] \u26a1 EXECUTED POSITION BUY: $2,000.00 in AVAXUSDT (Confidence: 78% | TP: +4.0%, SL: -2.0%)",
         "[11:57:55] \u26a1 EXECUTED POSITION BUY: $2,000.00 in SOLUSDT (Confidence: 82% | TP: +4.0%, SL: -2.0%)",
         "[11:57:55] \ud83d\udce5 Raw AI Stream Received (767 chars): [\n  {\n    \"action\": \"EXECUTE_PAPER_BUY\",\n    \"symbol\": \"SOLUSDT\",\n    \"confidence_score\": 82,\n    \"target_entry_price\": 73.03,\n    \"trade_details\": {\n",
