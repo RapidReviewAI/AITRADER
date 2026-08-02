@@ -2,3 +2,7 @@
 Call log:
   - waiting for locator(".main") to be visible
  | Screenshot: test_screenshots\crash_20260802_130528.png
+[2026-08-02 13:16:39] [CRASH] Test runner exception: Page.wait_for_selector: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator(".main") to be visible
+ | Screenshot: test_screenshots\crash_20260802_131602.png
