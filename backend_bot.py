@@ -184,16 +184,16 @@ Role: Master Crypto Quantitative Analyst & High-Conviction Scalper.
 Objective: Maximize $10,000 portfolio ROI in a strict 48-Hour Autonomous Trading Challenge.
 
 48-HOUR CHALLENGE DIRECTIVE:
-- You are in full autonomous control. Utilize all available technical price data, RSI momentum metrics, EMA trend alignments, volume ratios, 24h range extremes, and historical market dynamics.
-- Conduct deep analytical evaluation for ALL 20 tickers provided in the batch prompt.
-- Execute trades ONLY when your rigorous technical analysis indicates high conviction (>75% confidence).
-- Formulate precise, high-conviction trade plans specifying entry target, custom take-profit percentage, stop-loss protection, and dollar position sizing.
-- Return short, sharp technical rationales (under 5 words) explaining key analytical drivers (e.g., 'RSI oversold + EMA cross', 'Volume breakout above EMA9').
+- You are in full autonomous control. Utilize all technical price data, RSI momentum metrics, EMA trend alignments, volume ratios, 24h range extremes, and historical market dynamics.
+- Evaluate all tickers in the batch prompt as potential BUY setups.
+- CRITICAL SELL DIRECTIVE: Also evaluate any currently open ACTIVE POSITIONS provided in the prompt. If technical momentum weakens, RSI turns overbought, or trend degrades, issue "EXECUTE_PAPER_SELL" for that symbol to secure profits or cut losses early!
+- Execute BUY/SELL trades ONLY when your technical analysis indicates high conviction (>75% confidence).
+- Keep rationales concise (1-4 words). Output strictly compact valid JSON without extra whitespace.
 
 JSON Output Schema:
 [
   {
-    "action": "EXECUTE_PAPER_BUY" or "NO_TRADE",
+    "action": "EXECUTE_PAPER_BUY" or "EXECUTE_PAPER_SELL" or "NO_TRADE",
     "symbol": "BTCUSDT",
     "confidence_score": 85,
     "target_entry_price": 64500.0,
@@ -204,7 +204,7 @@ JSON Output Schema:
       "allocated_amount": 2500.0,
       "risk_reward_ratio": "1:2.5"
     },
-    "technical_rationale": ["RSI 34 oversold", "Vol 1.8x breakout"]
+    "technical_rationale": ["RSI 34 oversold", "Vol 1.8x"]
   }
 ]
 """
@@ -346,10 +346,34 @@ def run_single_scan_pass(passed_api_key=None):
 
             client = genai.Client(api_key=str(api_key).strip())
 
+            settings = portfolio.get("bot_settings", {
+                "min_confidence": 75,
+                "take_profit_pct": 4.0,
+                "stop_loss_pct": 2.0,
+                "max_positions": 5,
+                "max_trade_size": 3000.0,
+                "bot_attitude": "Balanced",
+                "strategy": "Scalping"
+            })
+
+            attitude = settings.get("bot_attitude", "Balanced")
+            strategy = settings.get("strategy", "Scalping")
+            
             header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
+            header += f"BOT_SETTINGS: Attitude={attitude}, Strategy={strategy}, MinConfidence={settings.get('min_confidence', 75)}%\n"
+            
+            active_pos_list = portfolio.get("active_positions", [])
+            if active_pos_list:
+                header += "CURRENT_ACTIVE_OPEN_POSITIONS:\n"
+                for ap in active_pos_list:
+                    header += f"- Symbol: {ap['symbol']}, EntryPrice: ${ap['entry_price']:.4f}, Allocated: ${ap['allocated_amount']:.2f}, TP: ${ap.get('take_profit', 0):.4f}, SL: ${ap.get('stop_loss', 0):.4f}\n"
+            else:
+                header += "CURRENT_ACTIVE_OPEN_POSITIONS: None\n"
+            
+            header += "\nMARKET_TICKER_DATA:\n"
             prompt = header + "\n".join(batch_payload)
             
-            log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL})...")
+            log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL} | Attitude: {attitude} | Strategy: {strategy})...")
             max_retries = 3
             response = None
             for attempt in range(max_retries):
@@ -429,19 +453,51 @@ def run_single_scan_pass(passed_api_key=None):
                         })
                     portfolio["latest_scan_decisions"] = decisions_log
                     
-                    settings = portfolio.get("bot_settings", {
-                        "min_confidence": 75,
-                        "take_profit_pct": 4.0,
-                        "stop_loss_pct": 2.0,
-                        "max_positions": 5,
-                        "max_trade_size": 3000.0
-                    })
                     min_conf = settings.get("min_confidence", 75)
                     tp_pct = settings.get("take_profit_pct", 4.0) / 100.0
                     sl_pct = settings.get("stop_loss_pct", 2.0) / 100.0
                     max_pos = settings.get("max_positions", 5)
                     max_alloc_cap = settings.get("max_trade_size", 3000.0)
 
+                    # Process SELL Signals first
+                    sell_signals = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_SELL"]
+                    for sell_sig in sell_signals:
+                        s_sym = sell_sig.get("symbol")
+                        pos_match = next((p for p in portfolio["active_positions"] if p["symbol"] == s_sym), None)
+                        if pos_match:
+                            cur_p = live_prices.get(s_sym, pos_match.get("entry_price", 1.0))
+                            alloc = pos_match.get("allocated_amount", 0.0)
+                            entry_p = pos_match.get("entry_price", 1.0)
+                            qty = alloc / entry_p if entry_p > 0 else 0.0
+                            exit_val = qty * cur_p
+                            pnl = exit_val - alloc
+                            pnl_pct = ((cur_p - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0
+
+                            portfolio["cash_balance"] += exit_val
+                            portfolio["invested_amount"] = max(portfolio.get("invested_amount", 0) - alloc, 0)
+                            portfolio["active_positions"] = [p for p in portfolio["active_positions"] if p["symbol"] != s_sym]
+
+                            rat_list = sell_sig.get("technical_rationale", ["AI Momentum Shift Sell"])
+                            rat_str = "; ".join(rat_list) if isinstance(rat_list, list) else str(rat_list)
+
+                            closed_rec = {
+                                "symbol": s_sym,
+                                "entry_price": entry_p,
+                                "exit_price": cur_p,
+                                "allocated_amount": alloc,
+                                "exit_value": exit_val,
+                                "pnl": pnl,
+                                "pnl_pct": pnl_pct,
+                                "close_reason": "AI_MOMENTUM_SELL",
+                                "rationale": rat_str,
+                                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }
+                            if "closed_trades" not in portfolio:
+                                portfolio["closed_trades"] = []
+                            portfolio["closed_trades"].insert(0, closed_rec)
+                            log_bot_event(f"🚨 AI EXECUTED POSITION SELL: {s_sym} @ ${cur_p:,.4f} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%) | Rationale: {rat_str}")
+
+                    # Process BUY Signals
                     valid_buys = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_BUY" and float(s.get("confidence_score", 0) or 0) >= min_conf]
                     valid_buys = sorted(valid_buys, key=lambda x: float(x.get("confidence_score", 0) or 0), reverse=True)
 
@@ -480,7 +536,7 @@ def run_single_scan_pass(passed_api_key=None):
                         elif already_in:
                             log_bot_event(f"ℹ️ Buy signal for {sym} skipped (position already open).")
                     
-                    if not valid_buys:
+                    if not valid_buys and not sell_signals:
                         log_bot_event(f"💤 No buy triggers met minimum confidence threshold (>= {min_conf}%).")
                 else:
                     log_bot_event("⚠️ Unexpected response format from AI.")

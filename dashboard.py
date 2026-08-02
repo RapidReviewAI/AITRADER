@@ -55,8 +55,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Auto-refresh UI every 15s to stream backend scan results live
-st.markdown('<meta http-equiv="refresh" content="15">', unsafe_allow_html=True)
+# Smooth non-disruptive state refresh (prevents full browser page flash/flicker)
+try:
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=15000, key="chartpulse_autorefresh")
+except Exception:
+    pass
 
 st.markdown("""
     <style>
@@ -650,7 +654,7 @@ def render_live_dashboard():
             with st.container(border=True):
                 st.caption("NEXT SCAN IN")
                 # Live HTML/JS Ticking Countdown Component
-                st.components.v1.html(f"""
+                countdown_html = f"""
                 <div style="font-family: sans-serif; text-align: left; background: transparent; color: white;">
                     <div id="countdown" style="font-size: 24px; font-weight: bold; color: #facc15;">⏳ {seconds_left}s</div>
                 </div>
@@ -670,7 +674,11 @@ def render_live_dashboard():
                         }}
                     }}, 1000);
                 </script>
-                """, height=40)
+                """
+                if hasattr(st, "html"):
+                    st.html(countdown_html)
+                else:
+                    st.components.v1.html(countdown_html, height=40)
                 st.caption("Cycle Interval: 60s")
         with s_col4:
             with st.container(border=True):
@@ -804,11 +812,29 @@ cur_settings = portfolio_data.get("bot_settings", {
     "take_profit_pct": 4.0,
     "stop_loss_pct": 2.0,
     "max_positions": 5,
-    "max_trade_size": 3000.0
+    "max_trade_size": 3000.0,
+    "bot_attitude": "Balanced",
+    "strategy": "Scalping"
 })
 
 if is_challenge_active:
-    st.sidebar.warning("🔒 48-Hour Challenge Active: Criteria Sliders Locked & Greyed Out.")
+    st.sidebar.warning("🔒 48-Hour Challenge Active: Criteria Sliders & Strategy Locked.")
+
+attitude_val = st.sidebar.selectbox(
+    "🎭 Bot Attitude",
+    options=["Aggressive", "Balanced", "Conservative"],
+    index=["Aggressive", "Balanced", "Conservative"].index(cur_settings.get("bot_attitude", "Balanced")),
+    disabled=is_challenge_active,
+    help="Controls AI conviction threshold and trade entry aggressiveness."
+)
+
+strategy_val = st.sidebar.selectbox(
+    "📐 Execution Strategy",
+    options=["Scalping", "Trend Following"],
+    index=["Scalping", "Trend Following"].index(cur_settings.get("strategy", "Scalping")),
+    disabled=is_challenge_active,
+    help="Determines target profit margins and holding style."
+)
 
 min_conf_val = st.sidebar.slider(
     "🎯 Min Confidence Threshold (%)",
@@ -862,7 +888,9 @@ if not is_challenge_active:
         "take_profit_pct": tp_pct_val,
         "stop_loss_pct": sl_pct_val,
         "max_positions": max_pos_val,
-        "max_trade_size": max_trade_val
+        "max_trade_size": max_trade_val,
+        "bot_attitude": attitude_val,
+        "strategy": strategy_val
     }
 
     if new_settings != cur_settings:
@@ -872,9 +900,9 @@ if not is_challenge_active:
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(portfolio_data, f, indent=4)
             os.replace(temp_file, STATE_FILE)
-            st.sidebar.success("✅ Criteria Saved!")
+            st.sidebar.success("✅ Settings Saved!")
         except Exception as e:
-            st.sidebar.error(f"Error saving criteria: {e}")
+            st.sidebar.error(f"Error saving settings: {e}")
 
 st.sidebar.divider()
 st.sidebar.markdown("**Active Engine Status:**")
