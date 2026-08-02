@@ -398,6 +398,7 @@ def run_single_scan_pass(passed_api_key=None):
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTIONS,
+                            response_mime_type="application/json",
                             temperature=0.1,
                             max_output_tokens=4096
                         )
