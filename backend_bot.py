@@ -183,7 +183,7 @@ Objective: Maximize $10,000 portfolio ROI in a strict 48-Hour Autonomous Trading
 - Evaluate all tickers in the batch prompt as potential BUY setups.
 - CRITICAL SELL DIRECTIVE: Also evaluate any currently open ACTIVE POSITIONS provided in the prompt. If technical momentum weakens, RSI turns overbought, or trend degrades, issue "EXECUTE_PAPER_SELL" for that symbol to secure profits or cut losses early!
 - Execute BUY/SELL trades ONLY when your technical analysis indicates high conviction (>75% confidence).
-- Keep rationales concise (1-4 words). Output strictly valid standard JSON without trailing commas or syntax errors.
+- Keep rationales concise (1-4 words). Output strictly raw standard JSON array without markdown codeblock wrappers (```json), unescaped newlines, trailing commas, or syntax errors.
 
 Schema Example:
 [
@@ -427,21 +427,27 @@ def run_single_scan_pass(passed_api_key=None):
             else:
                 raw_text = response.text.strip()
                 log_bot_event(f"📥 Raw AI Stream Received ({len(raw_text)} chars): {raw_text[:150]}")
+                
+                # Strip markdown codeblocks
                 if raw_text.startswith("```json"):
                     raw_text = raw_text[7:]
-                if raw_text.startswith("```"):
+                elif raw_text.startswith("```"):
                     raw_text = raw_text[3:]
                 if raw_text.endswith("```"):
                     raw_text = raw_text[:-3]
                 raw_text = raw_text.strip()
 
                 import re
-                cleaned_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
+                # Clean up unescaped control characters inside JSON strings (newlines, tabs, carriage returns)
+                cleaned_text = re.sub(r'[\r\n\t]+', ' ', raw_text)
+                cleaned_text = re.sub(r',\s*([\]}])', r'\1', cleaned_text)
                 cleaned_text = re.sub(r':\s*NaN', r': null', cleaned_text)
 
+                signals = None
                 try:
                     signals = json.loads(cleaned_text)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as decode_err:
+                    log_bot_event(f"⚠️ Initial JSON parse failed ({decode_err}). Attempting auto-repair...")
                     repaired_text = cleaned_text
                     last_complete_obj = repaired_text.rfind("}")
                     if last_complete_obj != -1:
@@ -452,10 +458,16 @@ def run_single_scan_pass(passed_api_key=None):
                             signals = json.loads(repaired_text)
                         except Exception:
                             signals = None
-                    else:
-                        signals = None
 
-                if isinstance(signals, list):
+                # Fallback protection if JSON repair fails
+                if not isinstance(signals, list):
+                    log_bot_event("⚠️ AI response JSON parsing failed completely. Using safe default hold signal.")
+                    signals = [{
+                        "action": "HOLD",
+                        "confidence_score": 0,
+                        "symbol": "MARKET",
+                        "technical_rationale": ["AI response JSON parsing failed"]
+                    }]
                     decisions_log = []
                     for s in signals:
                         trade = s.get("trade_details") or {}
