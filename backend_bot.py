@@ -388,44 +388,18 @@ def run_single_scan_pass(passed_api_key=None):
             header += "\nMARKET_TICKER_DATA:\n"
             prompt = header + "\n".join(batch_payload)
             
-            log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL} | Attitude: {attitude} | Strategy: {strategy})...")
+            log_bot_event(f"🧠 Querying Gemini API (gemini-1.5-flash | Attitude: {attitude} | Strategy: {strategy})...")
             max_retries = 3
             response = None
             for attempt in range(max_retries):
                 try:
+                    # Direct standard call to gemini-1.5-flash
                     response = client.models.generate_content(
-                        model=ACTIVE_MODEL,
+                        model="gemini-1.5-flash",
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTIONS,
                             response_mime_type="application/json",
-                            response_schema=types.Schema(
-                                type=types.Type.ARRAY,
-                                items=types.Schema(
-                                    type=types.Type.OBJECT,
-                                    properties={
-                                        "action": types.Schema(type=types.Type.STRING),
-                                        "symbol": types.Schema(type=types.Type.STRING),
-                                        "confidence_score": types.Schema(type=types.Type.INTEGER),
-                                        "target_entry_price": types.Schema(type=types.Type.NUMBER),
-                                        "trade_details": types.Schema(
-                                            type=types.Type.OBJECT,
-                                            properties={
-                                                "entry_price": types.Schema(type=types.Type.NUMBER),
-                                                "stop_loss": types.Schema(type=types.Type.NUMBER),
-                                                "take_profit": types.Schema(type=types.Type.NUMBER),
-                                                "allocated_amount": types.Schema(type=types.Type.NUMBER),
-                                                "risk_reward_ratio": types.Schema(type=types.Type.STRING)
-                                            }
-                                        ),
-                                        "technical_rationale": types.Schema(
-                                            type=types.Type.ARRAY,
-                                            items=types.Schema(type=types.Type.STRING)
-                                        )
-                                    },
-                                    required=["action", "symbol", "confidence_score"]
-                                )
-                            ),
                             temperature=0.1,
                             max_output_tokens=4096
                         )
@@ -434,18 +408,11 @@ def run_single_scan_pass(passed_api_key=None):
                 except Exception as model_err:
                     err_str = str(model_err)
                     if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                        wait_sec = 5
-                        next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
-                        ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
-                        log_bot_event(f"⚠️ Quota rate limit (429). Switching to {ACTIVE_MODEL} & retrying in {wait_sec}s...")
-                        time.sleep(wait_sec)
-                    elif "404" in err_str or "NOT_FOUND" in err_str:
-                        ACTIVE_MODEL = "gemini-1.5-flash"
-                        log_bot_event(f"⚠️ Model 404 Not Found. Auto-locking to production model {ACTIVE_MODEL}...")
-                        time.sleep(2)
+                        log_bot_event(f"⚠️ Quota limit hit. Retrying in 5s (attempt {attempt+1}/{max_retries})...")
+                        time.sleep(5)
                     else:
-                        log_bot_event(f"❌ Gemini API Error: {err_str[:120]}")
-                        raise model_err
+                        log_bot_event(f"⚠️ API Notice: {err_str[:120]}")
+                        time.sleep(3)
 
             if response is None or not getattr(response, 'text', None):
                 log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
