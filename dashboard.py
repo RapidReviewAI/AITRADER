@@ -583,14 +583,19 @@ def render_live_dashboard():
             except Exception:
                 pass
 
-        # Calculate engine status based on last scan freshness
+        # Calculate engine status based on active thread or recent log events
         import time as _time
         is_engine_active = False
-        if last_scan != "N/A":
+        
+        # Check thread status
+        active_thread = next((t for t in threading.enumerate() if t.name == "ChartPulseBackendThread"), None)
+        if active_thread and active_thread.is_alive():
+            is_engine_active = True
+        elif last_scan != "N/A":
             try:
                 last_dt = datetime.strptime(last_scan, "%Y-%m-%d %H:%M:%S")
                 elapsed_since_scan = (_time.time() - last_dt.timestamp())
-                if elapsed_since_scan <= 120:
+                if elapsed_since_scan <= 300: # Within last 5 mins
                     is_engine_active = True
             except Exception:
                 is_engine_active = False
@@ -603,8 +608,8 @@ def render_live_dashboard():
                     st.markdown("### 🟢 ONLINE")
                     st.caption("Active Scanner Thread")
                 else:
-                    st.markdown("### 🟡 IDLE / RESTARTING")
-                    st.caption("Auto-Healing Scan Thread")
+                    st.markdown("### 🟡 INITIALIZING")
+                    st.caption("Starting Scanner Thread")
         with s_col2:
             with st.container(border=True):
                 st.caption("LAST SCAN TIME")
