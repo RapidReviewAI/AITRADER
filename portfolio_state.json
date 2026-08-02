@@ -1,0 +1,513 @@
+{
+    "cash_balance": 2435.3884210526317,
+    "invested_amount": 7544.344780757176,
+    "active_positions": [
+        {
+            "symbol": "ETHUSDT",
+            "entry_price": 1877.56,
+            "allocated_amount": 2100.0,
+            "stop_loss": 1850.0,
+            "take_profit": 1940.0,
+            "risk_reward": "1:2.3",
+            "rationale": "High volume breakout; Bullish EMA cross",
+            "timestamp": "2026-08-02 01:34:12"
+        },
+        {
+            "symbol": "XRPUSDT",
+            "entry_price": 1.08,
+            "allocated_amount": 1470.0,
+            "stop_loss": 1.05,
+            "take_profit": 1.15,
+            "risk_reward": "1:2.3",
+            "rationale": "Volume expansion; Strong momentum",
+            "timestamp": "2026-08-02 01:34:12"
+        },
+        {
+            "symbol": "BNBUSDT",
+            "entry_price": 585.26,
+            "allocated_amount": 729.0,
+            "stop_loss": 573.5548,
+            "take_profit": 608.6704,
+            "risk_reward": "1:2.0",
+            "rationale": "RSI 100 max; High volume",
+            "timestamp": "2026-08-02 01:44:29"
+        },
+        {
+            "symbol": "SOLUSDT",
+            "entry_price": 73.62,
+            "allocated_amount": 803.0842105263157,
+            "stop_loss": 72.1476,
+            "take_profit": 76.5648,
+            "risk_reward": "1:2.1",
+            "rationale": "RSI high; Volume breakout",
+            "timestamp": "2026-08-02 01:54:20"
+        },
+        {
+            "symbol": "APTUSDT",
+            "entry_price": 0.57,
+            "allocated_amount": 1400.0,
+            "stop_loss": 0.5586,
+            "take_profit": 0.5928,
+            "risk_reward": "1:2.0",
+            "rationale": "Massive volume spike; Strong breakout",
+            "timestamp": "2026-08-02 02:04:16"
+        },
+        {
+            "symbol": "LINKUSDT",
+            "entry_price": 8.38,
+            "allocated_amount": 1043.737894736842,
+            "stop_loss": 8.2124,
+            "take_profit": 8.6314,
+            "risk_reward": "1:2.3",
+            "rationale": "Massive volume 10x; Strong breakout",
+            "timestamp": "2026-08-02 02:09:13"
+        }
+    ],
+    "closed_trades": [
+        {
+            "symbol": "APTUSDT",
+            "entry_price": 0.57,
+            "exit_price": 0.571,
+            "allocated_amount": 3000.0,
+            "exit_value": 3005.2631578947367,
+            "pnl": 5.263157894736651,
+            "pnl_pct": 0.17543859649122825,
+            "close_reason": "MANUAL_SELL_NOW",
+            "timestamp": "2026-08-02 02:03:46"
+        },
+        {
+            "symbol": "ADAUSDT",
+            "entry_price": 0.19,
+            "exit_price": 0.18543,
+            "allocated_amount": 1000.0,
+            "exit_value": 975.9473684210526,
+            "pnl": -24.0526315789474,
+            "pnl_pct": -2.4052631578947397,
+            "close_reason": "STOP_LOSS",
+            "timestamp": "2026-08-02 01:45:29"
+        }
+    ],
+    "latest_scan_decisions": [
+        {
+            "symbol": "BTCUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 63446.11,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Zero volume spike; Neutral momentum",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "ETHUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 1876.84,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Zero volume; Insufficient volatility",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "SOLUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 73.54,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "No volume; RSI neutral",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "BNBUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 583.71,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Zero volume; No setup",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "XRPUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 1.08,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Low volume; Range bound",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "ADAUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 0.19,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Zero volume; RSI high",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "AVAXUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 6.58,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "No volume; RSI flat",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "DOGEUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 0.07,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "Zero volume; Stall expected",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "LINKUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 8.36,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "RSI at 50; No volume",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "NEARUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 1.72,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "RSI overbought; Zero volume",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "SUIUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 0.69,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "RSI 50; No volume",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "APTUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 0.57,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "RSI extreme; Zero volume",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "ARBUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 0.08,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "RSI extreme; No volume",
+            "timestamp": "02:25:23"
+        },
+        {
+            "symbol": "OPUSDT",
+            "action": "NO_TRADE",
+            "confidence": 50,
+            "target_entry": 0.08,
+            "take_profit": 0.0,
+            "stop_loss": 0.0,
+            "suggested_alloc": 0.0,
+            "rationale": "RSI invalid; No data",
+            "timestamp": "02:25:23"
+        }
+    ],
+    "equity_history": [
+        {
+            "timestamp": "00:00:00",
+            "cash": 10000.0,
+            "invested": 0.0,
+            "total_equity": 10000.0
+        },
+        {
+            "timestamp": "01:34:12",
+            "cash": 3430.0,
+            "invested": 6578.67,
+            "total_equity": 10008.67
+        },
+        {
+            "timestamp": "01:36:01",
+            "cash": 3430.0,
+            "invested": 6578.39,
+            "total_equity": 10008.39
+        },
+        {
+            "timestamp": "01:36:41",
+            "cash": 3430.0,
+            "invested": 6578.39,
+            "total_equity": 10008.39
+        },
+        {
+            "timestamp": "01:38:14",
+            "cash": 3430.0,
+            "invested": 6578.39,
+            "total_equity": 10008.39
+        },
+        {
+            "timestamp": "01:39:59",
+            "cash": 3430.0,
+            "invested": 6576.77,
+            "total_equity": 10006.77
+        },
+        {
+            "timestamp": "01:41:09",
+            "cash": 3430.0,
+            "invested": 6576.77,
+            "total_equity": 10006.77
+        },
+        {
+            "timestamp": "01:42:24",
+            "cash": 3430.0,
+            "invested": 6575.92,
+            "total_equity": 10005.92
+        },
+        {
+            "timestamp": "01:43:14",
+            "cash": 3430.0,
+            "invested": 6575.92,
+            "total_equity": 10005.92
+        },
+        {
+            "timestamp": "01:44:29",
+            "cash": 1701.0,
+            "invested": 8280.86,
+            "total_equity": 9981.86
+        },
+        {
+            "timestamp": "01:45:43",
+            "cash": 2676.95,
+            "invested": 7304.77,
+            "total_equity": 9981.72
+        },
+        {
+            "timestamp": "01:46:57",
+            "cash": 2676.95,
+            "invested": 7304.77,
+            "total_equity": 9981.72
+        },
+        {
+            "timestamp": "01:48:10",
+            "cash": 2676.95,
+            "invested": 7304.77,
+            "total_equity": 9981.72
+        },
+        {
+            "timestamp": "01:49:25",
+            "cash": 2676.95,
+            "invested": 7305.46,
+            "total_equity": 9982.41
+        },
+        {
+            "timestamp": "01:50:38",
+            "cash": 2676.95,
+            "invested": 7305.46,
+            "total_equity": 9982.41
+        },
+        {
+            "timestamp": "01:51:52",
+            "cash": 2676.95,
+            "invested": 7305.46,
+            "total_equity": 9982.41
+        },
+        {
+            "timestamp": "01:53:06",
+            "cash": 2676.95,
+            "invested": 7305.8,
+            "total_equity": 9982.75
+        },
+        {
+            "timestamp": "01:54:20",
+            "cash": 1873.86,
+            "invested": 8110.49,
+            "total_equity": 9984.35
+        },
+        {
+            "timestamp": "01:55:33",
+            "cash": 1873.86,
+            "invested": 8110.49,
+            "total_equity": 9984.35
+        },
+        {
+            "timestamp": "01:56:48",
+            "cash": 1873.86,
+            "invested": 8110.36,
+            "total_equity": 9984.23
+        },
+        {
+            "timestamp": "01:58:02",
+            "cash": 1873.86,
+            "invested": 8110.36,
+            "total_equity": 9984.23
+        },
+        {
+            "timestamp": "01:59:17",
+            "cash": 1873.86,
+            "invested": 8110.36,
+            "total_equity": 9984.23
+        },
+        {
+            "timestamp": "02:00:32",
+            "cash": 1873.86,
+            "invested": 8111.73,
+            "total_equity": 9985.59
+        },
+        {
+            "timestamp": "02:01:47",
+            "cash": 1873.86,
+            "invested": 8111.18,
+            "total_equity": 9985.04
+        },
+        {
+            "timestamp": "02:03:01",
+            "cash": 1873.86,
+            "invested": 8111.36,
+            "total_equity": 9985.22
+        },
+        {
+            "timestamp": "02:04:16",
+            "cash": 3479.13,
+            "invested": 6509.18,
+            "total_equity": 9988.31
+        },
+        {
+            "timestamp": "02:05:29",
+            "cash": 3479.13,
+            "invested": 6510.91,
+            "total_equity": 9990.04
+        },
+        {
+            "timestamp": "02:06:44",
+            "cash": 3479.13,
+            "invested": 6511.03,
+            "total_equity": 9990.15
+        },
+        {
+            "timestamp": "02:07:59",
+            "cash": 3479.13,
+            "invested": 6511.03,
+            "total_equity": 9990.15
+        },
+        {
+            "timestamp": "02:09:13",
+            "cash": 2435.39,
+            "invested": 7551.69,
+            "total_equity": 9987.08
+        },
+        {
+            "timestamp": "02:10:27",
+            "cash": 2435.39,
+            "invested": 7550.39,
+            "total_equity": 9985.77
+        },
+        {
+            "timestamp": "02:11:41",
+            "cash": 2435.39,
+            "invested": 7548.09,
+            "total_equity": 9983.48
+        },
+        {
+            "timestamp": "02:12:55",
+            "cash": 2435.39,
+            "invested": 7546.34,
+            "total_equity": 9981.73
+        },
+        {
+            "timestamp": "02:14:10",
+            "cash": 2435.39,
+            "invested": 7546.34,
+            "total_equity": 9981.73
+        },
+        {
+            "timestamp": "02:15:24",
+            "cash": 2435.39,
+            "invested": 7546.34,
+            "total_equity": 9981.73
+        },
+        {
+            "timestamp": "02:16:38",
+            "cash": 2435.39,
+            "invested": 7546.34,
+            "total_equity": 9981.73
+        },
+        {
+            "timestamp": "02:17:52",
+            "cash": 2435.39,
+            "invested": 7545.41,
+            "total_equity": 9980.8
+        },
+        {
+            "timestamp": "02:19:08",
+            "cash": 2435.39,
+            "invested": 7545.41,
+            "total_equity": 9980.8
+        },
+        {
+            "timestamp": "02:20:24",
+            "cash": 2435.39,
+            "invested": 7545.42,
+            "total_equity": 9980.81
+        },
+        {
+            "timestamp": "02:21:39",
+            "cash": 2435.39,
+            "invested": 7544.34,
+            "total_equity": 9979.73
+        },
+        {
+            "timestamp": "02:22:53",
+            "cash": 2435.39,
+            "invested": 7544.34,
+            "total_equity": 9979.73
+        },
+        {
+            "timestamp": "02:24:07",
+            "cash": 2435.39,
+            "invested": 7544.34,
+            "total_equity": 9979.73
+        },
+        {
+            "timestamp": "02:25:23",
+            "cash": 2435.39,
+            "invested": 7544.34,
+            "total_equity": 9979.73
+        }
+    ],
+    "bot_settings": {
+        "min_confidence": 75,
+        "take_profit_pct": 3.0,
+        "stop_loss_pct": 2.0,
+        "max_positions": 6,
+        "max_trade_size": 3250.0
+    }
+}
