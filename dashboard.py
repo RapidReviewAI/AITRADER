@@ -203,32 +203,64 @@ def render_live_dashboard():
     manage_active_positions_dashboard(portfolio)
     market_prices = fetch_all_market_prices()
 
-    col_title, col_btn = st.columns([0.76, 0.24])
+    col_title, col_btn = st.columns([0.65, 0.35])
     with col_title:
         st.title("⚡ ChartPulse AI: $10,000 Trading Hub")
-        st.caption("v2.1.0 | Autonomous Gemini AI scanning 10 crypto assets every 60s with pre-calculated RSI & EMA technical indicators.")
+        st.caption("v2.4.0 | Autonomous Gemini AI scanning 20 crypto assets every 60s with full technical momentum analysis.")
+
+    is_challenge_active = portfolio.get("challenge_active", False)
 
     with col_btn:
         st.write("")
-        if st.button("🗑️ Reset $10,000 State", use_container_width=True):
-            default_state = {
-                "cash_balance": 10000.00,
-                "invested_amount": 0.00,
-                "active_positions": [],
-                "closed_trades": [],
-                "latest_scan_decisions": [],
-                "equity_history": [
-                    {
-                        "timestamp": "00:00:00",
-                        "cash": 10000.00,
-                        "invested": 0.00,
-                        "total_equity": 10000.00
-                    }
-                ]
-            }
-            with open(STATE_FILE, "w", encoding="utf-8") as f:
-                json.dump(default_state, f, indent=4)
-            st.rerun()
+        if not is_challenge_active:
+            if st.button("🚀 START 48-HOUR CHALLENGE", type="primary", use_container_width=True):
+                new_state = {
+                    "cash_balance": 10000.00,
+                    "invested_amount": 0.00,
+                    "active_positions": [],
+                    "closed_trades": [],
+                    "latest_scan_decisions": [],
+                    "bot_logs": [f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 48-Hour Autonomous AI Trading Challenge Started! Balance reset to $10,000.00."],
+                    "challenge_active": True,
+                    "challenge_start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "equity_history": [
+                        {
+                            "timestamp": datetime.now().strftime("%H:%M:%S"),
+                            "cash": 10000.00,
+                            "invested": 0.00,
+                            "total_equity": 10000.00
+                        }
+                    ]
+                }
+                with open(STATE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(new_state, f, indent=4)
+                st.success("🏆 48-Hour Challenge Initiated! Criteria locked in.")
+                st.rerun()
+        else:
+            if st.button("🔴 RESET & STOP CHALLENGE", use_container_width=True):
+                default_state = {
+                    "cash_balance": 10000.00,
+                    "invested_amount": 0.00,
+                    "active_positions": [],
+                    "closed_trades": [],
+                    "latest_scan_decisions": [],
+                    "challenge_active": False,
+                    "equity_history": [
+                        {
+                            "timestamp": "00:00:00",
+                            "cash": 10000.00,
+                            "invested": 0.00,
+                            "total_equity": 10000.00
+                        }
+                    ]
+                }
+                with open(STATE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(default_state, f, indent=4)
+                st.rerun()
+
+    if is_challenge_active:
+        start_t = portfolio.get("challenge_start_time", "N/A")
+        st.info(f"🏆 **48-HOUR CHALLENGE IS LIVE!** (Started: `{start_t}`) — Bot parameters are locked. Gemini AI is analyzing price charts, momentum indicators, and market forecasts to execute trades.")
 
     cash = portfolio.get("cash_balance", 10000.00)
     active_positions = portfolio.get("active_positions", [])
@@ -650,6 +682,8 @@ st.sidebar.subheader("🎛️ AI Bot Criteria Sliders")
 
 # Read current portfolio settings
 portfolio_data = load_portfolio()
+is_challenge_active = portfolio_data.get("challenge_active", False)
+
 cur_settings = portfolio_data.get("bot_settings", {
     "min_confidence": 75,
     "take_profit_pct": 4.0,
@@ -658,11 +692,15 @@ cur_settings = portfolio_data.get("bot_settings", {
     "max_trade_size": 3000.0
 })
 
+if is_challenge_active:
+    st.sidebar.warning("🔒 48-Hour Challenge Active: Criteria Sliders Locked & Greyed Out.")
+
 min_conf_val = st.sidebar.slider(
     "🎯 Min Confidence Threshold (%)",
     min_value=50, max_value=95,
     value=int(cur_settings.get("min_confidence", 75)),
     step=5,
+    disabled=is_challenge_active,
     help="Minimum AI confidence required to execute a paper buy order."
 )
 
@@ -671,6 +709,7 @@ tp_pct_val = st.sidebar.slider(
     min_value=1.0, max_value=15.0,
     value=float(cur_settings.get("take_profit_pct", 4.0)),
     step=0.5,
+    disabled=is_challenge_active,
     help="Target gain percentage to trigger automatic Take Profit exit."
 )
 
@@ -679,6 +718,7 @@ sl_pct_val = st.sidebar.slider(
     min_value=0.5, max_value=10.0,
     value=float(cur_settings.get("stop_loss_pct", 2.0)),
     step=0.5,
+    disabled=is_challenge_active,
     help="Maximum loss percentage before automatic Stop Loss exit."
 )
 
@@ -687,6 +727,7 @@ max_pos_val = st.sidebar.slider(
     min_value=1, max_value=10,
     value=int(cur_settings.get("max_positions", 5)),
     step=1,
+    disabled=is_challenge_active,
     help="Maximum number of simultaneous active positions allowed."
 )
 
@@ -695,34 +736,35 @@ max_trade_val = st.sidebar.slider(
     min_value=500.0, max_value=5000.0,
     value=float(cur_settings.get("max_trade_size", 3000.0)),
     step=250.0,
+    disabled=is_challenge_active,
     help="Maximum dollar amount allocated per paper trade."
 )
 
-# Save settings if changed
-new_settings = {
-    "min_confidence": min_conf_val,
-    "take_profit_pct": tp_pct_val,
-    "stop_loss_pct": sl_pct_val,
-    "max_positions": max_pos_val,
-    "max_trade_size": max_trade_val
-}
+# Save settings if changed (only when challenge is not active)
+if not is_challenge_active:
+    new_settings = {
+        "min_confidence": min_conf_val,
+        "take_profit_pct": tp_pct_val,
+        "stop_loss_pct": sl_pct_val,
+        "max_positions": max_pos_val,
+        "max_trade_size": max_trade_val
+    }
 
-if new_settings != cur_settings:
-    portfolio_data["bot_settings"] = new_settings
-    temp_file = f"{STATE_FILE}.tmp"
-    try:
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(portfolio_data, f, indent=4)
-        os.replace(temp_file, STATE_FILE)
-        st.sidebar.success("✅ Criteria Saved!")
-    except Exception as e:
-        st.sidebar.error(f"Error saving criteria: {e}")
+    if new_settings != cur_settings:
+        portfolio_data["bot_settings"] = new_settings
+        temp_file = f"{STATE_FILE}.tmp"
+        try:
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(portfolio_data, f, indent=4)
+            os.replace(temp_file, STATE_FILE)
+            st.sidebar.success("✅ Criteria Saved!")
+        except Exception as e:
+            st.sidebar.error(f"Error saving criteria: {e}")
 
 st.sidebar.divider()
 st.sidebar.markdown("**Active Engine Status:**")
 st.sidebar.write("• Watchlist: 20 Assets")
-st.sidebar.write("• Scan Loop: Every 60s (Auto-Failover)")
-st.sidebar.write(f"• Buy Trigger: >={min_conf_val}% Confidence")
-st.sidebar.write(f"• TP Goal: +{tp_pct_val}% | SL Guard: -{sl_pct_val}%")
+st.sidebar.write("• Mode: Autonomous Gemini AI Deep Analysis")
+st.sidebar.write(f"• Criteria: {'🔒 LOCKED (48h Challenge)' if is_challenge_active else '✏️ Customizable'}")
 
 render_live_dashboard()
