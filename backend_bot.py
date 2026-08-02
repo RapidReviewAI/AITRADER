@@ -253,7 +253,9 @@ def manage_active_positions(portfolio):
                 "quantity": qty,
                 "exit_value": exit_value,
                 "pnl": pnl,
+                "pnl_usd": pnl,
                 "pnl_pct": pnl_pct,
+                "exit_reason": close_reason,
                 "close_reason": close_reason,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
@@ -507,9 +509,12 @@ def run_single_scan_pass(passed_api_key=None):
                                     "entry_price": entry_p,
                                     "exit_price": cur_p,
                                     "allocated_amount": alloc,
+                                    "quantity": qty,
                                     "exit_value": exit_val,
                                     "pnl": pnl,
+                                    "pnl_usd": pnl,
                                     "pnl_pct": pnl_pct,
+                                    "exit_reason": "AI_MOMENTUM_SELL",
                                     "close_reason": "AI_MOMENTUM_SELL",
                                     "rationale": rat_str,
                                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
