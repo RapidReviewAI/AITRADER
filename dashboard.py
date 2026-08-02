@@ -113,6 +113,9 @@ st.markdown("""
     .stream-watermark span {
         color: #3b82f6;
     }
+    .block-container, .main .block-container {
+        padding-top: 85px !important;
+    }
     </style>
     <div class="stream-watermark">
         ⚡ <span>ChartPulse AI v2.2</span> | Interactive Live Charts
@@ -172,7 +175,7 @@ def fetch_live_crypto_news():
     return news_items
 
 def render_live_ticker_banner(market_prices, watchlist):
-    """Renders a smooth CSS marquee ticker for the 20 watchlist assets."""
+    """Renders a smooth sticky CSS marquee ticker for the 20 watchlist assets."""
     ticker_html_items = []
     for sym in watchlist:
         price = market_prices.get(sym)
@@ -184,14 +187,22 @@ def render_live_ticker_banner(market_prices, watchlist):
 
     ticker_css = f"""
     <style>
+    body {{
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }}
     .ticker-wrap {{
+        position: fixed;
+        top: 0;
+        left: 0;
         width: 100%;
+        z-index: 99999;
         overflow: hidden;
         background-color: #0f172a;
         padding: 8px 0;
-        border-radius: 8px;
-        border: 1px solid #1e293b;
-        margin-bottom: 6px;
+        border-bottom: 1px solid #1e293b;
+        box-sizing: border-box;
     }}
     .ticker-wrap:hover .ticker-move {{
         animation-play-state: paused;
@@ -216,7 +227,7 @@ def render_live_ticker_banner(market_prices, watchlist):
     st.components.v1.html(ticker_css, height=38)
 
 def render_news_ticker_banner():
-    """Renders a smooth CSS marquee for live crypto news headlines."""
+    """Renders a smooth sticky CSS marquee for live crypto news headlines."""
     news = fetch_live_crypto_news()
     news_html_items = []
     for item in news:
@@ -226,14 +237,22 @@ def render_news_ticker_banner():
 
     news_css = f"""
     <style>
+    body {{
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+    }}
     .news-wrap {{
+        position: fixed;
+        top: 0;
+        left: 0;
         width: 100%;
+        z-index: 99998;
         overflow: hidden;
         background-color: #1e1b4b;
         padding: 6px 0;
-        border-radius: 8px;
-        border: 1px solid #312e81;
-        margin-bottom: 12px;
+        border-bottom: 1px solid #312e81;
+        box-sizing: border-box;
     }}
     .news-wrap:hover .news-move {{
         animation-play-state: paused;
