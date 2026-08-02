@@ -534,12 +534,12 @@ def render_live_dashboard():
     total_pnl = total_equity - 10000.00
     pnl_pct = (total_pnl / 10000.00) * 100
 
-    # Stats Calculation
-    wins = [t for t in closed_trades if t.get("pnl", 0) > 0]
+    # Stats Calculation reading directly from closed_trades
+    wins = [t for t in closed_trades if (t.get("pnl_usd") if t.get("pnl_usd") is not None else t.get("pnl", 0)) > 0]
     win_rate = (len(wins) / len(closed_trades) * 100) if closed_trades else 0.0
-    total_profit = sum([t.get("pnl", 0) for t in wins]) if wins else 0.0
-    losses = [t for t in closed_trades if t.get("pnl", 0) <= 0]
-    total_loss = abs(sum([t.get("pnl", 0) for t in losses])) if losses else 0.0
+    total_profit = sum([(t.get("pnl_usd") if t.get("pnl_usd") is not None else t.get("pnl", 0)) for t in wins]) if wins else 0.0
+    losses = [t for t in closed_trades if (t.get("pnl_usd") if t.get("pnl_usd") is not None else t.get("pnl", 0)) <= 0]
+    total_loss = abs(sum([(t.get("pnl_usd") if t.get("pnl_usd") is not None else t.get("pnl", 0)) for t in losses])) if losses else 0.0
     profit_factor = (total_profit / total_loss) if total_loss > 0 else (total_profit if total_profit > 0 else 1.0)
 
     c1, c2, c3, c4, c5 = st.columns(5)
@@ -708,44 +708,22 @@ def render_live_dashboard():
                             if not confirm_sell_item:
                                 st.warning("Check 'Confirm' first!")
                             else:
-                                exit_value = cur_val
-                                pnl = unrealized_pnl
-                                pnl_pct = unrealized_pct
+                                active_u_id = st.session_state.get("user_id", 1)
+                                updated_p, closed_rec = db.execute_position_exit(active_u_id, sym, cur, exit_reason="MANUAL_SELL_NOW", rationale=rationale_text)
+                                if updated_p:
+                                    portfolio.update(updated_p)
+                                
+                                if active_u_id == 1:
+                                    temp_file = f"{STATE_FILE}.tmp"
+                                    try:
+                                        with open(temp_file, "w", encoding="utf-8") as f:
+                                            json.dump(portfolio, f, indent=4)
+                                        os.replace(temp_file, STATE_FILE)
+                                    except Exception:
+                                        pass
 
-                                portfolio["cash_balance"] += exit_value
-                                portfolio["invested_amount"] = max(portfolio.get("invested_amount", 0) - allocated, 0)
-
-                                closed_record = {
-                                    "symbol": sym,
-                                    "entry_price": entry_p,
-                                    "exit_price": cur,
-                                    "allocated_amount": allocated,
-                                    "quantity": qty,
-                                    "exit_value": exit_value,
-                                    "pnl": pnl,
-                                    "pnl_usd": pnl,
-                                    "pnl_pct": pnl_pct,
-                                    "stop_loss": sl_val,
-                                    "take_profit": tp_val,
-                                    "exit_reason": "MANUAL_SELL_NOW",
-                                    "close_reason": "MANUAL_SELL_NOW",
-                                    "rationale": rationale_text,
-                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                }
-                                if "closed_trades" not in portfolio:
-                                    portfolio["closed_trades"] = []
-                                portfolio["closed_trades"].insert(0, closed_record)
-
-                                portfolio["active_positions"] = [pos for pos in active_positions if pos["symbol"] != sym]
-
-                                temp_file = f"{STATE_FILE}.tmp"
-                                try:
-                                    with open(temp_file, "w", encoding="utf-8") as f:
-                                        json.dump(portfolio, f, indent=4)
-                                    os.replace(temp_file, STATE_FILE)
-                                except Exception:
-                                    pass
-
+                                pnl = closed_rec["pnl_usd"] if closed_rec else unrealized_pnl
+                                pnl_pct = closed_rec["pnl_pct"] if closed_rec else unrealized_pct
                                 st.success(f"🎉 Closed {sym} at ${cur:,.4f} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
                                 st.rerun()
                     

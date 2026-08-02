@@ -100,6 +100,7 @@
         }
     ],
     "bot_logs": [
+        "[13:21:43] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-2.5-flash | Active Users: 2",
         "[12:34:53] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",
         "[12:29:39] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",
         "[12:27:27] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",

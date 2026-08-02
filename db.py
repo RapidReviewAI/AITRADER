@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_FILE = os.path.join(BASE_DIR, "app_data.db")
@@ -32,6 +33,25 @@ def init_db():
             closed_trades TEXT DEFAULT '[]',
             bot_settings TEXT DEFAULT '{}',
             last_scan_time TEXT DEFAULT 'N/A',
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS trades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            symbol TEXT NOT NULL,
+            entry_price REAL,
+            exit_price REAL,
+            quantity REAL,
+            allocated_amount REAL,
+            exit_value REAL,
+            pnl_usd REAL,
+            pnl_pct REAL,
+            exit_reason TEXT,
+            rationale TEXT,
+            timestamp TEXT,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
@@ -121,6 +141,77 @@ def save_portfolio_db(user_id, portfolio_dict):
     
     conn.commit()
     conn.close()
+
+def execute_position_exit(user_id, symbol, exit_price, exit_reason="MANUAL_SELL", rationale=""):
+    """
+    Unified position exit execution logic:
+    - Calculates PnL
+    - Constructs closed trade record
+    - Inserts into trades table
+    - Updates portfolio cash balance and active positions in SQLite
+    - Returns updated portfolio dictionary and closed_record
+    """
+    init_db()
+    portfolio = get_or_create_portfolio(user_id)
+    active_positions = portfolio.get("active_positions", [])
+    pos = next((p for p in active_positions if p.get("symbol") == symbol), None)
+    
+    if not pos:
+        return portfolio, None
+
+    entry_price = float(pos.get("entry_price", 1.0))
+    alloc = float(pos.get("allocated_amount", 0.0))
+    qty = float(pos.get("quantity")) if pos.get("quantity") is not None else (alloc / entry_price if entry_price > 0 else 0.0)
+    
+    exit_value = qty * float(exit_price)
+    pnl_usd = (float(exit_price) - entry_price) * qty
+    pnl_pct = ((float(exit_price) - entry_price) / entry_price) * 100 if entry_price > 0 else 0.0
+    
+    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    rat_str = rationale or pos.get("rationale", "")
+
+    closed_record = {
+        "symbol": symbol,
+        "entry_price": entry_price,
+        "exit_price": float(exit_price),
+        "quantity": qty,
+        "allocated_amount": alloc,
+        "exit_value": exit_value,
+        "pnl": pnl_usd,
+        "pnl_usd": pnl_usd,
+        "pnl_pct": pnl_pct,
+        "exit_reason": exit_reason,
+        "close_reason": exit_reason,
+        "rationale": rat_str,
+        "timestamp": timestamp_str
+    }
+
+    # Update portfolio dict state
+    portfolio["cash_balance"] = portfolio.get("cash_balance", 10000.0) + exit_value
+    portfolio["invested_amount"] = max(0.0, portfolio.get("invested_amount", 0.0) - alloc)
+    portfolio["active_positions"] = [p for p in active_positions if p.get("symbol") != symbol]
+    
+    if "closed_trades" not in portfolio:
+        portfolio["closed_trades"] = []
+    portfolio["closed_trades"].insert(0, closed_record)
+
+    # Save portfolio update
+    save_portfolio_db(user_id, portfolio)
+
+    # Record in SQL trades table
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO trades (user_id, symbol, entry_price, exit_price, quantity, allocated_amount, exit_value, pnl_usd, pnl_pct, exit_reason, rationale, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, symbol, entry_price, float(exit_price), qty, alloc, exit_value, pnl_usd, pnl_pct, exit_reason, rat_str, timestamp_str))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ Error recording trade into trades table: {e}")
+
+    return portfolio, closed_record
 
 def register_user(username, password):
     """Registers a new user and returns user_id, or None if username already exists."""

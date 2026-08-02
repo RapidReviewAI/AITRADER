@@ -19,6 +19,11 @@
 
 ## 📜 Recent Fixes & Modifications
 
+### [v2.4.3] - Unified Position Exit Pipeline & SQLite Trades Persistence
+* **Added:** Created `trades` table schema and unified `execute_position_exit` function in `db.py` to consolidate all position exit paths.
+* **Unified:** Routed manual UI sell button, stop-loss exits, take-profit exits, and AI momentum sell signals through `db.execute_position_exit`.
+* **Updated:** Win Rate % and Profit Factor metrics calculation in `dashboard.py` to read directly from consolidated closed trade datasets.
+
 ### [v2.4.2] - AI Response Sanitization & Safe JSON Parsing
 * **Fixed:** Resolved `JSONDecodeError` / `Unterminated string` exceptions by cleaning unescaped control characters (`\n`, `\r`, `\t`) and stripping markdown wrappers.
 * **Added:** Fallback protection returning a default hold signal when AI response JSON parsing or auto-repair fails.

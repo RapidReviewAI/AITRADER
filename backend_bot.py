@@ -236,33 +236,14 @@ def manage_active_positions(portfolio):
             close_reason = "STOP_LOSS"
 
         if close_reason:
-            alloc = float(pos.get("allocated_amount", 0.0))
-            qty = float(pos.get("quantity")) if pos.get("quantity") is not None else (alloc / entry if entry > 0 else 0.0)
-            exit_value = qty * current_price
-            pnl = exit_value - alloc
-            pnl_pct = (pnl / alloc) * 100 if alloc > 0 else 0.0
-
-            portfolio["cash_balance"] += exit_value
-            portfolio["invested_amount"] = max(0.0, portfolio.get("invested_amount", 0.0) - alloc)
-
-            closed_record = {
-                "symbol": sym,
-                "entry_price": entry,
-                "exit_price": current_price,
-                "allocated_amount": alloc,
-                "quantity": qty,
-                "exit_value": exit_value,
-                "pnl": pnl,
-                "pnl_usd": pnl,
-                "pnl_pct": pnl_pct,
-                "exit_reason": close_reason,
-                "close_reason": close_reason,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-            if "closed_trades" not in portfolio:
-                portfolio["closed_trades"] = []
-            portfolio["closed_trades"].insert(0, closed_record)
-            print(f" 🎉 CLOSED POSITION: {sym} via {close_reason} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
+            u_id = portfolio.get("user_id", 1)
+            updated_p, closed_rec = db.execute_position_exit(u_id, sym, current_price, exit_reason=close_reason, rationale=pos.get("rationale", ""))
+            if updated_p:
+                portfolio.update(updated_p)
+            if closed_rec:
+                pnl = closed_rec["pnl_usd"]
+                pnl_pct = closed_rec["pnl_pct"]
+                print(f" 🎉 CLOSED POSITION: {sym} via {close_reason} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
         else:
             remaining_positions.append(pos)
     
@@ -502,38 +483,12 @@ def run_single_scan_pass(passed_api_key=None):
                             pos_match = next((p for p in user_p.get("active_positions", []) if p["symbol"] == s_sym), None)
                             if pos_match:
                                 cur_p = live_prices.get(s_sym, pos_match.get("entry_price", 1.0))
-                                alloc = pos_match.get("allocated_amount", 0.0)
-                                entry_p = pos_match.get("entry_price", 1.0)
-                                qty = alloc / entry_p if entry_p > 0 else 0.0
-                                exit_val = qty * cur_p
-                                pnl = exit_val - alloc
-                                pnl_pct = ((cur_p - entry_p) / entry_p) * 100 if entry_p > 0 else 0.0
-
-                                user_p["cash_balance"] += exit_val
-                                user_p["invested_amount"] = max(user_p.get("invested_amount", 0) - alloc, 0)
-                                user_p["active_positions"] = [p for p in user_p["active_positions"] if p["symbol"] != s_sym]
-
                                 rat_list = sell_sig.get("technical_rationale", ["AI Momentum Shift Sell"])
                                 rat_str = "; ".join(rat_list) if isinstance(rat_list, list) else str(rat_list)
 
-                                closed_rec = {
-                                    "symbol": s_sym,
-                                    "entry_price": entry_p,
-                                    "exit_price": cur_p,
-                                    "allocated_amount": alloc,
-                                    "quantity": qty,
-                                    "exit_value": exit_val,
-                                    "pnl": pnl,
-                                    "pnl_usd": pnl,
-                                    "pnl_pct": pnl_pct,
-                                    "exit_reason": "AI_MOMENTUM_SELL",
-                                    "close_reason": "AI_MOMENTUM_SELL",
-                                    "rationale": rat_str,
-                                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                }
-                                if "closed_trades" not in user_p:
-                                    user_p["closed_trades"] = []
-                                user_p["closed_trades"].insert(0, closed_rec)
+                                updated_p, _ = db.execute_position_exit(u_id, s_sym, cur_p, exit_reason="AI_MOMENTUM_SELL", rationale=rat_str)
+                                if updated_p:
+                                    user_p.update(updated_p)
 
                         # Process BUY Signals
                         valid_buys = [s for s in signals if str(s.get("action", "")).upper() == "EXECUTE_PAPER_BUY" and float(s.get("confidence_score", 0) or 0) >= u_min_conf]
