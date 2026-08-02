@@ -14,10 +14,14 @@ def start_background_bot_thread():
     try:
         import backend_bot
         ui_key = None
-        if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-            ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-        elif os.getenv("GEMINI_API_KEY"):
-            ui_key = os.getenv("GEMINI_API_KEY")
+        if hasattr(st, "secrets"):
+            if "GEMINI_API_KEY" in st.secrets:
+                ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+            elif "gemini_api_key" in st.secrets:
+                ui_key = str(st.secrets["gemini_api_key"]).strip()
+        
+        if not ui_key:
+            ui_key = os.getenv("GEMINI_API_KEY") or os.getenv("gemini_api_key")
 
         existing_thread = next((t for t in threading.enumerate() if t.name == "ChartPulseBackendThread"), None)
         if existing_thread is None or not existing_thread.is_alive():

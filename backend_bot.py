@@ -328,20 +328,23 @@ def run_single_scan_pass(passed_api_key=None):
 
     if batch_payload:
         try:
-            api_key = passed_api_key or os.getenv("GEMINI_API_KEY")
+            api_key = passed_api_key or os.getenv("GEMINI_API_KEY") or os.getenv("gemini_api_key")
             if not api_key:
                 try:
                     import streamlit as st
-                    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                except Exception as _sec_err:
+                    if hasattr(st, "secrets"):
+                        if "GEMINI_API_KEY" in st.secrets:
+                            api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                        elif "gemini_api_key" in st.secrets:
+                            api_key = str(st.secrets["gemini_api_key"]).strip()
+                except Exception:
                     pass
 
-            if not api_key or len(api_key) < 10 or api_key == "None":
-                log_bot_event(f"❌ CRITICAL: GEMINI_API_KEY is missing or invalid! (Key Length: {len(str(api_key)) if api_key else 0})")
+            if not api_key or len(str(api_key).strip()) < 10 or api_key == "None":
+                log_bot_event(f"❌ CRITICAL: GEMINI_API_KEY is missing or invalid! (Key Length: {len(str(api_key)) if api_key else 0}). Please verify Streamlit Secrets.")
                 return
 
-            client = genai.Client(api_key=api_key)
+            client = genai.Client(api_key=str(api_key).strip())
 
             header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
             prompt = header + "\n".join(batch_payload)
