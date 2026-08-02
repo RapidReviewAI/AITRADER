@@ -393,9 +393,9 @@ def run_single_scan_pass(passed_api_key=None):
             response = None
             for attempt in range(max_retries):
                 try:
-                    # Direct standard call to gemini-1.5-flash
+                    # Direct explicit call to models/gemini-1.5-flash
                     response = client.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="models/gemini-1.5-flash",
                         contents=prompt,
                         config=types.GenerateContentConfig(
                             system_instruction=SYSTEM_INSTRUCTIONS,
@@ -411,8 +411,7 @@ def run_single_scan_pass(passed_api_key=None):
                         log_bot_event(f"⚠️ Quota limit hit. Retrying in 5s (attempt {attempt+1}/{max_retries})...")
                         time.sleep(5)
                     else:
-                        log_bot_event(f"⚠️ API Notice: {err_str[:120]}")
-                        time.sleep(3)
+                        time.sleep(2)
 
             if response is None or not getattr(response, 'text', None):
                 log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
