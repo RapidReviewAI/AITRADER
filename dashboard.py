@@ -679,19 +679,37 @@ def render_live_dashboard():
                     st.warning(err_item)
 
         st.markdown("### 🖥️ Real-Time Engine Operations Console")
-        if st.button("⚡ FORCE INSTANT SCAN PASS NOW", type="secondary"):
-            try:
-                import backend_bot
-                ui_key = None
-                if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
-                    ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                elif os.getenv("GEMINI_API_KEY"):
-                    ui_key = os.getenv("GEMINI_API_KEY")
-                
-                threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
-                st.toast("🚀 Instant market scan pass triggered! Updating logs...", icon="⚡")
-            except Exception as e:
-                st.error(f"Scan trigger error: {e}")
+        r_col1, r_col2 = st.columns([0.65, 0.35])
+        with r_col1:
+            if st.button("⚡ FORCE INSTANT SCAN PASS NOW", type="secondary", use_container_width=True):
+                try:
+                    import backend_bot
+                    ui_key = None
+                    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+                        ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                    elif os.getenv("GEMINI_API_KEY"):
+                        ui_key = os.getenv("GEMINI_API_KEY")
+                    
+                    threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
+                    st.toast("🚀 Instant market scan pass triggered! Updating logs...", icon="⚡")
+                except Exception as e:
+                    st.error(f"Scan trigger error: {e}")
+        with r_col2:
+            if st.button("🗑️ RESET ALL CLOUD DATA", type="primary", use_container_width=True):
+                clean_state = {
+                    "cash_balance": 10000.00,
+                    "invested_amount": 0.00,
+                    "active_positions": [],
+                    "closed_trades": [],
+                    "latest_scan_decisions": [],
+                    "bot_logs": [f"[{datetime.now().strftime('%H:%M:%S')}] 🧹 Cloud portfolio state wiped clean."],
+                    "last_scan_time": "N/A",
+                    "challenge_active": False
+                }
+                with open(STATE_FILE, "w", encoding="utf-8") as f:
+                    json.dump(clean_state, f, indent=4)
+                st.toast("🧹 Cloud storage reset! Refreshing...", icon="🧹")
+                st.rerun()
         if bot_logs:
             log_box_content = "\n".join(bot_logs)
             st.code(log_box_content, language="text")
