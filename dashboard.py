@@ -18,6 +18,21 @@ def start_background_bot_thread():
             t = threading.Thread(target=backend_bot.main, daemon=True, name="ChartPulseBackendThread")
             t.start()
             st.session_state["bot_thread_started"] = True
+        
+        # Fallback check: if last scan is older than 90s, launch instant scan pass
+        if os.path.exists("portfolio_state.json"):
+            with open("portfolio_state.json", "r", encoding="utf-8") as f:
+                data = json.load(f)
+                last_scan = data.get("last_scan_time")
+                if last_scan:
+                    try:
+                        last_dt = datetime.strptime(last_scan, "%Y-%m-%d %H:%M:%S")
+                        if (datetime.now() - last_dt).total_seconds() > 90:
+                            threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                    except Exception:
+                        pass
+                else:
+                    threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
     except Exception:
         pass
 
@@ -352,7 +367,7 @@ def render_live_dashboard():
                 # Compact Inline Price & Target Summary Bar
                 tp_str = f"${tp_p:,.4f}" if tp_p else "N/A"
                 sl_str = f"${sl_p:,.4f}" if sl_p else "N/A"
-                st.caption(f"📍 Live: **${cur_p:,.4f}** | 🔵 Entry: **${entry_p:,.4f}** | 🟢 TP Goal: **{tp_str}** | 🔴 SL Target: **{sl_str}**")
+                st.caption(f"Live: **${cur_p:,.4f}** | Entry: **${entry_p:,.4f}** | TP Goal: **{tp_str}** | SL Target: **{sl_str}**")
 
                 # Single Clean Line Chart
                 fig_clean = go.Figure()
@@ -371,7 +386,7 @@ def render_live_dashboard():
                 # 🟡 CURRENT LIVE PRICE LINE (Yellow Solid Line across chart)
                 fig_clean.add_hline(
                     y=cur_p, line_dash="solid", line_color="#facc15", line_width=2.5,
-                    annotation_text=f" 🟡 CURRENT PRICE: ${cur_p:,.4f} ",
+                    annotation_text=f" CURRENT PRICE: ${cur_p:,.4f} ",
                     annotation_position="top left", annotation_font_color="#000000", annotation_bgcolor="#facc15"
                 )
 
@@ -379,7 +394,7 @@ def render_live_dashboard():
                 if tp_p:
                     fig_clean.add_hline(
                         y=tp_p, line_dash="solid", line_color="#10b981", line_width=2.5,
-                        annotation_text=f" 🟢 TAKE PROFIT GOAL: ${tp_p:,.4f} ",
+                        annotation_text=f" TAKE PROFIT GOAL: ${tp_p:,.4f} ",
                         annotation_position="top right", annotation_font_color="#ffffff", annotation_bgcolor="#10b981"
                     )
 
@@ -387,7 +402,7 @@ def render_live_dashboard():
                 if entry_p > 0:
                     fig_clean.add_hline(
                         y=entry_p, line_dash="dash", line_color="#3b82f6", line_width=2,
-                        annotation_text=f" 🔵 BUY ENTRY: ${entry_p:,.4f} ",
+                        annotation_text=f" BUY ENTRY: ${entry_p:,.4f} ",
                         annotation_position="bottom right", annotation_font_color="#ffffff", annotation_bgcolor="#3b82f6"
                     )
 
@@ -395,7 +410,7 @@ def render_live_dashboard():
                 if sl_p:
                     fig_clean.add_hline(
                         y=sl_p, line_dash="solid", line_color="#ef4444", line_width=2.5,
-                        annotation_text=f" 🔴 STOP LOSS TARGET: ${sl_p:,.4f} ",
+                        annotation_text=f" STOP LOSS TARGET: ${sl_p:,.4f} ",
                         annotation_position="bottom right", annotation_font_color="#ffffff", annotation_bgcolor="#ef4444"
                     )
 
@@ -406,7 +421,7 @@ def render_live_dashboard():
                         y=[cur_p],
                         mode="markers+text",
                         marker=dict(color="#facc15", size=14, symbol="circle"),
-                        text=[f"  📍 NOW: ${cur_p:,.4f}"],
+                        text=[f"  NOW: ${cur_p:,.4f}"],
                         textposition="middle right",
                         textfont=dict(color="#facc15", size=14, family="Arial Black"),
                         name="Current Live Price"
@@ -423,11 +438,11 @@ def render_live_dashboard():
                     paper_bgcolor="#0b0f19",
                     plot_bgcolor="#0f172a",
                     height=450,
-                    margin=dict(l=20, r=120, t=30, b=20),
+                    margin=dict(l=40, r=140, t=30, b=30),
                     showlegend=False
                 )
-                fig_clean.update_yaxes(range=[min_y, max_y], gridcolor="#1e293b", tickformat="$,.2f")
-                fig_clean.update_xaxes(gridcolor="#1e293b")
+                fig_clean.update_yaxes(range=[min_y, max_y], gridcolor="#1e293b", tickformat="$,.2f", automargin=False)
+                fig_clean.update_xaxes(gridcolor="#1e293b", automargin=False)
 
             else:
                 st.warning(f"Could not load live chart data for {selected_symbol}.")
@@ -659,6 +674,13 @@ def render_live_dashboard():
                     st.warning(err_item)
 
         st.markdown("### 🖥️ Real-Time Engine Operations Console")
+        if st.button("⚡ FORCE INSTANT SCAN PASS NOW", type="secondary"):
+            try:
+                import backend_bot
+                threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                st.toast("🚀 Instant market scan pass triggered! Updating logs...", icon="⚡")
+            except Exception as e:
+                st.error(f"Scan trigger error: {e}")
         if bot_logs:
             log_box_content = "\n".join(bot_logs)
             st.code(log_box_content, language="text")

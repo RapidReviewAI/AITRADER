@@ -492,7 +492,10 @@ def main():
     print(f"ChartPulse AI Engine v2.0.0 Active [{ACTIVE_MODEL}]")
     print(f"API Quota Optimized Mode: Scanning 20 assets every {SCAN_INTERVAL_SECONDS}s")
     
-    print("⏳ Engine initialized. Initial scan starting in 5 seconds...")
+    try:
+        print("⏳ Engine initialized. Initial scan starting in 5 seconds...")
+    except Exception:
+        print("Engine initialized. Initial scan starting in 5 seconds...")
     time.sleep(5)
     
     while True:
