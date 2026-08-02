@@ -1047,13 +1047,14 @@ with st.sidebar.expander("👤 User Account & Authentication", expanded=(active_
                 else:
                     st.warning("Please enter username and password.")
         else: # Sign Up
-            signup_user = st.text_input("New Username", key="auth_signup_user")
-            signup_pwd = st.text_input("New Password", type="password", key="auth_signup_pwd")
+            signup_user = st.text_input("Username", key="signup_user")
+            signup_pwd = st.text_input("Password", type="password", key="signup_pass")
             if st.button("📝 Register Account", type="primary", use_container_width=True):
                 if signup_user and signup_pwd:
-                    new_uid = db.register_user(signup_user.strip(), signup_pwd)
-                    if new_uid:
-                        st.session_state["user_id"] = new_uid
+                    user_id = db.register_user(signup_user.strip(), signup_pwd)
+                    if user_id:
+                        st.session_state["user_id"] = user_id
+                        st.success("Account created successfully!")
                         st.toast(f"Account created! Welcome, {signup_user.strip()}!", icon="🚀")
                         st.rerun()
                     else:
