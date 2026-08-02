@@ -257,7 +257,12 @@ def render_live_dashboard():
                 # Trigger instant immediate market scan pass upon challenge start
                 try:
                     import backend_bot
-                    threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                    ui_key = None
+                    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+                        ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                    elif os.getenv("GEMINI_API_KEY"):
+                        ui_key = os.getenv("GEMINI_API_KEY")
+                    threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
                 except Exception:
                     pass
 
@@ -677,7 +682,13 @@ def render_live_dashboard():
         if st.button("⚡ FORCE INSTANT SCAN PASS NOW", type="secondary"):
             try:
                 import backend_bot
-                threading.Thread(target=backend_bot.run_single_scan_pass, daemon=True).start()
+                ui_key = None
+                if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
+                    ui_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                elif os.getenv("GEMINI_API_KEY"):
+                    ui_key = os.getenv("GEMINI_API_KEY")
+                
+                threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
                 st.toast("🚀 Instant market scan pass triggered! Updating logs...", icon="⚡")
             except Exception as e:
                 st.error(f"Scan trigger error: {e}")

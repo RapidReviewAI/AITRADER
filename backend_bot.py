@@ -291,7 +291,7 @@ def update_equity_snapshot(portfolio, live_prices):
     if len(portfolio["equity_history"]) > 100:
         portfolio["equity_history"] = portfolio["equity_history"][-100:]
 
-def run_single_scan_pass():
+def run_single_scan_pass(passed_api_key=None):
     global ACTIVE_MODEL
     timestamp = datetime.now().strftime("%H:%M:%S")
     print(f"\n--- [Scan Cycle Start: {timestamp}] ---")
@@ -328,17 +328,17 @@ def run_single_scan_pass():
 
     if batch_payload:
         try:
-            api_key = os.getenv("GEMINI_API_KEY")
+            api_key = passed_api_key or os.getenv("GEMINI_API_KEY")
             if not api_key:
                 try:
                     import streamlit as st
-                    if "GEMINI_API_KEY" in st.secrets:
+                    if hasattr(st, "secrets") and "GEMINI_API_KEY" in st.secrets:
                         api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
-                except Exception:
+                except Exception as _sec_err:
                     pass
 
-            if not api_key or api_key == "None":
-                log_bot_event("❌ CRITICAL: GEMINI_API_KEY is missing or invalid in environment/secrets!")
+            if not api_key or len(api_key) < 10 or api_key == "None":
+                log_bot_event(f"❌ CRITICAL: GEMINI_API_KEY is missing or invalid! (Key Length: {len(str(api_key)) if api_key else 0})")
                 return
 
             client = genai.Client(api_key=api_key)
