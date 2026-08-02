@@ -98,6 +98,7 @@
         }
     ],
     "bot_logs": [
+        "[12:07:14] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[12:04:51] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[12:03:04] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite",
         "[11:57:55] \u26a1 EXECUTED POSITION BUY: $2,000.00 in AVAXUSDT (Confidence: 78% | TP: +4.0%, SL: -2.0%)",

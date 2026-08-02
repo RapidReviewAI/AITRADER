@@ -174,8 +174,8 @@ def fetch_live_crypto_news():
         ]
     return news_items
 
-def render_live_ticker_banner(market_prices, watchlist):
-    """Renders a smooth sticky CSS marquee ticker for the 20 watchlist assets."""
+def render_dual_ticker_header(market_prices, watchlist):
+    """Renders both price and news tickers in a single combined iframe block."""
     ticker_html_items = []
     for sym in watchlist:
         price = market_prices.get(sym)
@@ -183,26 +183,32 @@ def render_live_ticker_banner(market_prices, watchlist):
         clean_name = sym.replace("USDT", "")
         ticker_html_items.append(f'<span style="margin: 0 18px;"><b style="color: #60a5fa;">{clean_name}</b>: <span style="color: #e5e7eb;">{price_str}</span></span>')
 
-    full_text = " • ".join(ticker_html_items)
+    full_price_text = " • ".join(ticker_html_items)
 
-    ticker_css = f"""
+    news = fetch_live_crypto_news()
+    news_html_items = []
+    for item in news:
+        news_html_items.append(f'<a href="{item["link"]}" target="_blank" style="color: #f59e0b; text-decoration: none; font-weight: 500; margin: 0 16px;">📰 {item["title"]}</a>')
+    
+    full_news_text = " • ".join(news_html_items)
+
+    combined_html = f"""
     <style>
     body {{
         margin: 0;
         padding: 0;
         overflow: hidden;
+        background-color: #0b0f19;
+        font-family: system-ui, -apple-system, sans-serif;
     }}
     .ticker-wrap {{
-        position: fixed;
-        top: 0;
-        left: 0;
         width: 100%;
-        z-index: 99999;
         overflow: hidden;
         background-color: #0f172a;
-        padding: 8px 0;
+        padding: 6px 0;
         border-bottom: 1px solid #1e293b;
         box-sizing: border-box;
+        height: 36px;
     }}
     .ticker-wrap:hover .ticker-move {{
         animation-play-state: paused;
@@ -212,47 +218,22 @@ def render_live_ticker_banner(market_prices, watchlist):
         white-space: nowrap;
         padding-left: 100%;
         animation: ticker 40s linear infinite;
-        font-family: system-ui, -apple-system, sans-serif;
         font-size: 14px;
+        line-height: 24px;
     }}
     @keyframes ticker {{
         0% {{ transform: translate3d(0, 0, 0); }}
         100% {{ transform: translate3d(-100%, 0, 0); }}
     }}
-    </style>
-    <div class="ticker-wrap">
-        <div class="ticker-move">{full_text}</div>
-    </div>
-    """
-    st.components.v1.html(ticker_css, height=38)
 
-def render_news_ticker_banner():
-    """Renders a smooth sticky CSS marquee for live crypto news headlines."""
-    news = fetch_live_crypto_news()
-    news_html_items = []
-    for item in news:
-        news_html_items.append(f'<a href="{item["link"]}" target="_blank" style="color: #f59e0b; text-decoration: none; font-weight: 500; margin: 0 16px;">📰 {item["title"]}</a>')
-    
-    full_news = " • ".join(news_html_items)
-
-    news_css = f"""
-    <style>
-    body {{
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-    }}
     .news-wrap {{
-        position: fixed;
-        top: 0;
-        left: 0;
         width: 100%;
-        z-index: 99998;
         overflow: hidden;
         background-color: #1e1b4b;
-        padding: 6px 0;
+        padding: 5px 0;
         border-bottom: 1px solid #312e81;
         box-sizing: border-box;
+        height: 32px;
     }}
     .news-wrap:hover .news-move {{
         animation-play-state: paused;
@@ -262,19 +243,22 @@ def render_news_ticker_banner():
         white-space: nowrap;
         padding-left: 100%;
         animation: news-ticker 45s linear infinite;
-        font-family: system-ui, -apple-system, sans-serif;
         font-size: 13px;
+        line-height: 22px;
     }}
     @keyframes news-ticker {{
         0% {{ transform: translate3d(0, 0, 0); }}
         100% {{ transform: translate3d(-100%, 0, 0); }}
     }}
     </style>
+    <div class="ticker-wrap">
+        <div class="ticker-move">{full_price_text}</div>
+    </div>
     <div class="news-wrap">
-        <div class="news-move">{full_news}</div>
+        <div class="news-move">{full_news_text}</div>
     </div>
     """
-    st.components.v1.html(news_css, height=34)
+    st.components.v1.html(combined_html, height=75)
 
 @st.cache_data(ttl=3)
 def fetch_all_market_prices():
@@ -326,12 +310,27 @@ def load_portfolio():
     return default_state
 
 def render_live_dashboard():
+    # Force Streamlit iframe containers for tickers to stick to top of screen
+    st.markdown("""
+        <style>
+        div[data-testid="stCustomComponentV1"] {
+            position: sticky;
+            top: 0;
+            z-index: 99999;
+            background-color: #0b0f19;
+        }
+        
+        .block-container {
+            padding-top: 1rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
     portfolio = load_portfolio()
     market_prices = fetch_all_market_prices()
 
-    # Top Dual Tickers: Real-Time Crypto Prices + Live News Feed
-    render_live_ticker_banner(market_prices, WATCHLIST)
-    render_news_ticker_banner()
+    # Single Combined Dual Ticker: Real-Time Crypto Prices + Live News Feed
+    render_dual_ticker_header(market_prices, WATCHLIST)
 
     col_title, col_btn = st.columns([0.65, 0.35])
     with col_title:
