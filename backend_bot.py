@@ -18,7 +18,17 @@ from google.genai import types
 load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=API_KEY)
+if not API_KEY:
+    try:
+        import streamlit as st
+        API_KEY = st.secrets.get("GEMINI_API_KEY")
+    except Exception:
+        pass
+
+try:
+    client = genai.Client(api_key=API_KEY) if API_KEY else None
+except Exception as _e:
+    client = None
 
 MODEL_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
@@ -298,6 +308,10 @@ def run_single_scan_pass():
 
     if batch_payload:
         try:
+            if not client:
+                log_bot_event("❌ CRITICAL: GEMINI_API_KEY is missing or invalid in environment/secrets!")
+                return
+
             header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
             prompt = header + "\n".join(batch_payload)
             
@@ -333,11 +347,11 @@ def run_single_scan_pass():
                         log_bot_event(f"❌ Gemini API Error: {err_str[:120]}")
                         raise model_err
 
-            
             if response is None or not getattr(response, 'text', None):
-                log_bot_event("⚠️ No valid response from Gemini after retries. Skipping cycle.")
+                log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
             else:
                 raw_text = response.text.strip()
+                log_bot_event(f"📥 Raw AI Stream Received ({len(raw_text)} chars): {raw_text[:120]}...")
                 if raw_text.startswith("```json"):
                     raw_text = raw_text[7:]
                 if raw_text.startswith("```"):

@@ -665,6 +665,15 @@ def render_live_dashboard():
         else:
             st.info("Initializing engine console logs... Initial scan cycle in progress.")
 
+        with st.expander("📡 Raw Backend Live Telemetry & API Payload Feed", expanded=True):
+            st.caption("Direct raw inspection of backend JSON state payload, Gemini stream text, and engine parameters.")
+            st.json({
+                "last_scan_timestamp": last_scan,
+                "total_logged_events": len(bot_logs),
+                "latest_raw_signals": portfolio.get("latest_scan_decisions", []),
+                "recent_raw_log_stream": bot_logs[:10]
+            })
+
     with tab_brain:
         st.subheader("🧠 Gemini AI Brain - Detailed Scan Analysis")
         st.caption("Complete view of AI evaluations: why it bought, why it passed, target buy entry, take profit, stop loss, and confidence levels.")
