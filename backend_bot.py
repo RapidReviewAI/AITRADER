@@ -393,25 +393,26 @@ def run_single_scan_pass(passed_api_key=None):
             response = None
             for attempt in range(max_retries):
                 try:
-                    # Direct explicit call to models/gemini-1.5-flash
-                    response = client.models.generate_content(
-                        model="models/gemini-1.5-flash",
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=SYSTEM_INSTRUCTIONS,
-                            response_mime_type="application/json",
-                            temperature=0.1,
-                            max_output_tokens=4096
-                        )
+                    import google.generativeai as legacy_genai
+                    legacy_genai.configure(api_key=str(api_key).strip())
+                    g_model = legacy_genai.GenerativeModel(
+                        model_name="gemini-1.5-flash",
+                        system_instruction=SYSTEM_INSTRUCTIONS
                     )
-                    break
+                    response = g_model.generate_content(
+                        prompt,
+                        generation_config={
+                            "response_mime_type": "application/json",
+                            "temperature": 0.1,
+                            "max_output_tokens": 4096
+                        }
+                    )
+                    if response and getattr(response, "text", None):
+                        break
                 except Exception as model_err:
                     err_str = str(model_err)
-                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                        log_bot_event(f"⚠️ Quota limit hit. Retrying in 5s (attempt {attempt+1}/{max_retries})...")
-                        time.sleep(5)
-                    else:
-                        time.sleep(2)
+                    log_bot_event(f"⚠️ Gemini API Notice: {err_str[:120]}")
+                    time.sleep(3)
 
             if response is None or not getattr(response, 'text', None):
                 log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
