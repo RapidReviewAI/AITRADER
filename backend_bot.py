@@ -308,9 +308,20 @@ def run_single_scan_pass():
 
     if batch_payload:
         try:
-            if not client:
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                try:
+                    import streamlit as st
+                    if "GEMINI_API_KEY" in st.secrets:
+                        api_key = str(st.secrets["GEMINI_API_KEY"]).strip()
+                except Exception:
+                    pass
+
+            if not api_key or api_key == "None":
                 log_bot_event("❌ CRITICAL: GEMINI_API_KEY is missing or invalid in environment/secrets!")
                 return
+
+            client = genai.Client(api_key=api_key)
 
             header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
             prompt = header + "\n".join(batch_payload)
