@@ -382,7 +382,7 @@ def run_single_scan_pass(passed_api_key=None):
                 log_bot_event("⚠️ No valid response text from Gemini after retries. Skipping cycle.")
             else:
                 raw_text = response.text.strip()
-                log_bot_event(f"📥 Raw AI Stream Received ({len(raw_text)} chars): {raw_text[:120]}...")
+                log_bot_event(f"📥 Raw AI Stream Received ({len(raw_text)} chars): {raw_text[:150]}")
                 if raw_text.startswith("```json"):
                     raw_text = raw_text[7:]
                 if raw_text.startswith("```"):
@@ -393,7 +393,8 @@ def run_single_scan_pass(passed_api_key=None):
 
                 try:
                     signals = json.loads(raw_text)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as j_err:
+                    log_bot_event(f"⚠️ JSON Decode Error from AI output: {j_err}. Attempting auto-repair...")
                     if raw_text.startswith("[") and not raw_text.endswith("]"):
                         last_complete_obj = raw_text.rfind("}")
                         if last_complete_obj != -1:
@@ -401,7 +402,8 @@ def run_single_scan_pass(passed_api_key=None):
                             try:
                                 signals = json.loads(repaired_text)
                                 log_bot_event("🔧 Auto-repaired truncated JSON response from AI.")
-                            except Exception:
+                            except Exception as rep_err:
+                                log_bot_event(f"❌ Auto-repair failed: {rep_err}")
                                 signals = None
                         else:
                             signals = None
