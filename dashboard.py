@@ -410,20 +410,16 @@ def render_live_dashboard():
                 pnl_color = "🟢" if unrealized_pnl >= 0 else "🔴"
                 
                 with st.expander(f"{pnl_color} **{sym}** | Live: **${cur:,.4f}** | PnL: **${unrealized_pnl:+,.2f} ({unrealized_pct:+.2f}%)** | Bought: **{time_bought}**", expanded=False):
-                    c_det1, c_det2, c_det3 = st.columns([0.40, 0.35, 0.25])
+                    c_det1, c_det2, c_det3 = st.columns([0.45, 0.35, 0.20])
                     with c_det1:
-                        st.markdown(f"**Bought At:** `${entry_p:,.4f}`")
-                        st.markdown(f"**Current Price:** `${cur:,.4f}`")
-                        st.markdown(f"**Capital Invested:** `${allocated:,.2f}`")
+                        st.caption(f"Entry: `${entry_p:,.4f}` | Live: `${cur:,.4f}` | Value: `${cur_val:,.2f}` (${allocated:,.2f})")
                     with c_det2:
-                        st.markdown(f"**Take Profit Goal:** `${tp_val:,.4f}`")
-                        st.markdown(f"**Stop Loss Target:** `${sl_val:,.4f}`")
-                        st.markdown(f"**Order Time:** `{time_bought}`")
+                        st.caption(f"TP: `${tp_val:,.4f}` | SL: `${sl_val:,.4f}` | Time: `{time_bought}`")
                     with c_det3:
-                        confirm_sell_item = st.checkbox("Confirm Sell", key=f"confirm_list_{sym}")
-                        if st.button(f"🔴 SELL {sym} NOW", key=f"sell_btn_{sym}", type="primary", use_container_width=True):
+                        confirm_sell_item = st.checkbox("Confirm", key=f"confirm_list_{sym}")
+                        if st.button(f"🔴 SELL", key=f"sell_btn_{sym}", type="primary", use_container_width=True):
                             if not confirm_sell_item:
-                                st.warning("Check 'Confirm Sell' first!")
+                                st.warning("Check 'Confirm' first!")
                             else:
                                 exit_value = cur_val
                                 pnl = unrealized_pnl
@@ -460,11 +456,10 @@ def render_live_dashboard():
                                 except Exception:
                                     pass
 
-                                st.success(f"🎉 Manually closed position in {sym} at ${cur:,.4f} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
+                                st.success(f"🎉 Closed {sym} at ${cur:,.4f} | PnL: ${pnl:+,.2f} ({pnl_pct:+.2f}%)")
                                 st.rerun()
                     
-                    st.markdown("---")
-                    st.markdown(f"**🧠 AI Execution Rationale:** {rationale_text}")
+                    st.caption(f"🧠 **AI Rationale:** {rationale_text}")
 
             # Detailed Transaction Logs & Closed History
             st.write("---")
