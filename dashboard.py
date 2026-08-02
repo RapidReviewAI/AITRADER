@@ -264,7 +264,12 @@ def render_live_dashboard():
 
     st.divider()
 
-    tab_overview, tab_brain, tab_history = st.tabs(["📊 Performance & Active Positions", "🧠 Detailed AI Brain Analysis", "📜 Closed Trade History & Logs"])
+    tab_overview, tab_status, tab_brain, tab_history = st.tabs([
+        "📊 Performance & Active Positions",
+        "📡 Engine Scan Status & Logs",
+        "🧠 Detailed AI Brain Analysis",
+        "📜 Closed Trade History & Logs"
+    ])
 
     with tab_overview:
         col_left, col_right = st.columns([0.65, 0.35])
@@ -414,7 +419,7 @@ def render_live_dashboard():
                         st.markdown(f"**Take Profit Goal:** `${tp_val:,.4f}`")
                         st.markdown(f"**Stop Loss Target:** `${sl_val:,.4f}`")
                         st.markdown(f"**Order Time:** `{time_bought}`")
-                    with c_action:
+                    with c_det3:
                         confirm_sell_item = st.checkbox("Confirm Sell", key=f"confirm_list_{sym}")
                         if st.button(f"🔴 SELL {sym} NOW", key=f"sell_btn_{sym}", type="primary", use_container_width=True):
                             if not confirm_sell_item:
@@ -519,6 +524,25 @@ def render_live_dashboard():
                         st.markdown("---")
             else:
                 st.info("No closed trades recorded yet.")
+
+    with tab_status:
+        st.subheader("📡 Background Trading Engine Status & Real-Time Logs")
+        st.caption("Live status stream showing exact backend operations, Binance market fetches, Gemini model calls, and failover health.")
+        
+        last_scan = portfolio.get("last_scan_time", "N/A")
+        bot_logs = portfolio.get("bot_logs", [])
+
+        s_col1, s_col2, s_col3 = st.columns(3)
+        s_col1.metric("Engine Health", "🟢 ONLINE (Auto-Threaded)", "60s Scan Interval")
+        s_col2.metric("Last Completed Scan", last_scan)
+        s_col3.metric("Recent Activity Events", len(bot_logs))
+
+        st.markdown("### 🖥️ Real-Time Engine Operations Console")
+        if bot_logs:
+            log_box_content = "\n".join(bot_logs)
+            st.code(log_box_content, language="text")
+        else:
+            st.info("Initializing engine console logs... Initial scan cycle in progress.")
 
     with tab_brain:
         st.subheader("🧠 Gemini AI Brain - Detailed Scan Analysis")

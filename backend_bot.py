@@ -266,6 +266,17 @@ def main():
         portfolio = load_portfolio()
         manage_active_positions(portfolio)
 
+        if "bot_logs" not in portfolio:
+            portfolio["bot_logs"] = []
+
+        def log_bot_event(msg):
+            print(msg)
+            portfolio["bot_logs"].insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+            if len(portfolio["bot_logs"]) > 50:
+                portfolio["bot_logs"] = portfolio["bot_logs"][:50]
+
+        log_bot_event(f"🚀 Scan Cycle Start | Active Model: {ACTIVE_MODEL}")
+
         batch_payload = []
         live_prices = {}
         
@@ -275,14 +286,14 @@ def main():
                 live_prices[sym] = metrics["price"]
                 batch_payload.append(f"SYMBOL: {sym}\nDATA: {metrics['raw_candles_summary']}\n---")
 
-        print(f"📡 Processed technical indicators for {len(batch_payload)} tickers.")
+        log_bot_event(f"📡 Processed indicators for {len(batch_payload)} tickers.")
 
         if batch_payload:
             try:
                 header = f"CURRENT_AVAILABLE_CASH: ${portfolio['cash_balance']:,.2f}\n"
                 prompt = header + "\n".join(batch_payload)
                 
-                print(f"🧠 Querying Gemini API ({ACTIVE_MODEL})...")
+                log_bot_event(f"🧠 Querying Gemini API ({ACTIVE_MODEL})...")
                 max_retries = 3
                 response = None
                 for attempt in range(max_retries):
@@ -434,24 +445,25 @@ def main():
                                         "rationale": "; ".join(signal.get("technical_rationale", []) if isinstance(signal.get("technical_rationale"), list) else [str(signal.get("technical_rationale", ""))]),
                                         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     })
-                                    print(f" ⚡ EXECUTED POSITION BUY: ${alloc:,.2f} in {sym} (Confidence: {confidence}% | TP: +{settings.get('take_profit_pct')}%, SL: -{settings.get('stop_loss_pct')}%)")
-                                else:
-                                    print(f" ⚠️ Could not execute buy for {sym}: price data missing or allocation below minimum.")
+                                    log_bot_event(f"⚡ EXECUTED POSITION BUY: ${alloc:,.2f} in {sym} (Confidence: {confidence}% | TP: +{settings.get('take_profit_pct')}%, SL: -{settings.get('stop_loss_pct')}%)")
+                                 else:
+                                     log_bot_event(f"⚠️ Could not execute buy for {sym}: price data missing or allocation below minimum.")
                             elif already_in:
-                                print(f" ℹ️ Buy signal for {sym} skipped (position already open).")
+                                log_bot_event(f"ℹ️ Buy signal for {sym} skipped (position already open).")
                         
                         if not valid_buys:
-                            print(f" 💤 No buy triggers met minimum confidence threshold (>= {min_conf}%).")
+                            log_bot_event(f"💤 No buy triggers met minimum confidence threshold (>= {min_conf}%).")
                     else:
-                        print("⚠️ Unexpected response format from AI.")
+                        log_bot_event("⚠️ Unexpected response format from AI.")
 
             except Exception as e:
-                print(f"❌ Scan Error: {e}")
+                log_bot_event(f"❌ Scan Error: {e}")
 
         update_equity_snapshot(portfolio, live_prices)
+        portfolio["last_scan_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         save_portfolio(portfolio)
 
-        print(f"⏱️ Sleeping {SCAN_INTERVAL_SECONDS}s until next scan...")
+        log_bot_event(f"⏱️ Sleeping {SCAN_INTERVAL_SECONDS}s until next scan...")
         time.sleep(SCAN_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
