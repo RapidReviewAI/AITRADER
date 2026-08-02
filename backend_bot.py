@@ -385,7 +385,7 @@ def run_single_scan_pass(passed_api_key=None):
                             system_instruction=SYSTEM_INSTRUCTIONS,
                             response_mime_type="application/json",
                             temperature=0.2,
-                            max_output_tokens=2048
+                            max_output_tokens=4096
                         )
                     )
                     break
@@ -418,25 +418,27 @@ def run_single_scan_pass(passed_api_key=None):
                     raw_text = raw_text[:-3]
                 raw_text = raw_text.strip()
 
-                # Clean common LLM JSON syntax quirks (trailing commas, unescaped quotes)
+                # Clean common LLM JSON syntax quirks (trailing commas, unescaped quotes, NaN/nulls)
                 import re
                 cleaned_text = re.sub(r',\s*([\]}])', r'\1', raw_text)
+                cleaned_text = re.sub(r':\s*NaN', r': null', cleaned_text)
 
                 try:
                     signals = json.loads(cleaned_text)
                 except json.JSONDecodeError as j_err:
                     log_bot_event(f"⚠️ JSON Decode Error from AI output: {j_err}. Attempting auto-repair...")
-                    if cleaned_text.startswith("[") and not cleaned_text.endswith("]"):
-                        last_complete_obj = cleaned_text.rfind("}")
-                        if last_complete_obj != -1:
-                            repaired_text = cleaned_text[:last_complete_obj+1] + "]"
-                            try:
-                                signals = json.loads(repaired_text)
-                                log_bot_event("🔧 Auto-repaired truncated JSON response from AI.")
-                            except Exception as rep_err:
-                                log_bot_event(f"❌ Auto-repair failed: {rep_err}")
-                                signals = None
-                        else:
+                    repaired_text = cleaned_text
+                    # Find last valid closing bracket of an array item
+                    last_complete_obj = repaired_text.rfind("}")
+                    if last_complete_obj != -1:
+                        repaired_text = repaired_text[:last_complete_obj+1]
+                        if not repaired_text.endswith("]"):
+                            repaired_text += "]"
+                        try:
+                            signals = json.loads(repaired_text)
+                            log_bot_event("🔧 Auto-repaired JSON structure from AI output.")
+                        except Exception as rep_err:
+                            log_bot_event(f"❌ Auto-repair failed ({rep_err}). Skipping corrupted payload.")
                             signals = None
                     else:
                         signals = None
