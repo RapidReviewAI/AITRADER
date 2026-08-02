@@ -305,12 +305,10 @@ def render_live_dashboard():
                 tp_p = float(selected_pos.get("take_profit", 0)) if selected_pos.get("take_profit") else None
                 sl_p = float(selected_pos.get("stop_loss", 0)) if selected_pos.get("stop_loss") else None
 
-                # Clean Metric Cards Header
-                c_p1, c_p2, c_p3, c_p4 = st.columns(4)
-                c_p1.metric("📍 CURRENT LIVE PRICE", f"${cur_p:,.4f}")
-                c_p2.metric("🔵 YOUR BUY ENTRY", f"${entry_p:,.4f}")
-                c_p3.metric("🟢 TAKE PROFIT GOAL", f"${tp_p:,.4f}" if tp_p else "N/A")
-                c_p4.metric("🔴 STOP LOSS TARGET", f"${sl_p:,.4f}" if sl_p else "N/A")
+                # Compact Inline Price & Target Summary Bar
+                tp_str = f"${tp_p:,.4f}" if tp_p else "N/A"
+                sl_str = f"${sl_p:,.4f}" if sl_p else "N/A"
+                st.caption(f"📍 Live: **${cur_p:,.4f}** | 🔵 Entry: **${entry_p:,.4f}** | 🟢 TP Goal: **{tp_str}** | 🔴 SL Target: **{sl_str}**")
 
                 # Single Clean Line Chart
                 fig_clean = go.Figure()
