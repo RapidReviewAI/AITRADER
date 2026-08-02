@@ -30,7 +30,7 @@ try:
 except Exception as _e:
     client = None
 
-MODEL_FALLBACKS = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash", "gemini-1.5-pro"]
 ACTIVE_MODEL = MODEL_FALLBACKS[0]
 
 # Top 20 High-Volume Crypto Assets Watchlist
@@ -404,7 +404,7 @@ def run_single_scan_pass(passed_api_key=None):
                     next_model_idx = (MODEL_FALLBACKS.index(ACTIVE_MODEL) + 1) % len(MODEL_FALLBACKS) if ACTIVE_MODEL in MODEL_FALLBACKS else 0
                     prev_model = ACTIVE_MODEL
                     ACTIVE_MODEL = MODEL_FALLBACKS[next_model_idx]
-                    log_bot_event(f"⚠️ API issue with {prev_model}. Failover switching to {ACTIVE_MODEL} (attempt {attempt+1}/{max_retries})...")
+                    log_bot_event(f"⚠️ API error on {prev_model}: {err_str[:120]}. Failover switching to {ACTIVE_MODEL} (attempt {attempt+1}/{max_retries})...")
                     time.sleep(4)
 
             if response is None or not getattr(response, 'text', None):
