@@ -29,7 +29,7 @@ def start_background_bot_thread():
             t.start()
             st.session_state["bot_thread_started"] = True
         
-        # Fallback check: if last scan is missing or older than 90s, execute inline scan pass immediately
+        # Fallback check: if last scan is missing or older than 90s, launch non-blocking scan thread
         if os.path.exists("portfolio_state.json"):
             with open("portfolio_state.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -43,7 +43,7 @@ def start_background_bot_thread():
                     except Exception:
                         need_sync = True
                 if need_sync:
-                    backend_bot.run_single_scan_pass(passed_api_key=ui_key)
+                    threading.Thread(target=backend_bot.run_single_scan_pass, args=(ui_key,), daemon=True).start()
     except Exception:
         pass
 
