@@ -100,6 +100,8 @@
         }
     ],
     "bot_logs": [
+        "[12:26:02] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",
+        "[12:24:47] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",
         "[12:22:36] \ud83d\ude80 Scan Cycle Start | Active Model: gemini-3.5-flash-lite | Active Users: 1",
         "[12:20:43] \u2705 Multi-User Scan Complete: Decisions saved across 1 active account(s).",
         "[12:20:43] \ud83d\udce5 Raw AI Stream Received (773 chars): [\n  {\n    \"action\": \"EXECUTE_PAPER_SELL\",\n    \"symbol\": \"BTCUSDT\",\n    \"confidence_score\": 80,\n    \"target_entry_price\": 63080.85,\n    \"trade_details\"",

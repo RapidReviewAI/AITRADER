@@ -428,8 +428,9 @@ def render_live_dashboard():
     market_prices = fetch_all_market_prices()
     viewer_count = track_and_get_active_viewers()
 
-    # Top Sticky Dual Ticker Header: Real-Time Crypto Prices (+/- %) + Live Financial News
-    render_sticky_dual_ticker_header(market_prices, WATCHLIST)
+    # Top Dual Ticker Header: Real-Time Crypto Prices (+/- %) + Live Financial News
+    with st.container():
+        render_sticky_dual_ticker_header(market_prices, WATCHLIST)
 
     col_title, col_btn = st.columns([0.65, 0.35])
     with col_title:
