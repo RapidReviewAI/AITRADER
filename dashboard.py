@@ -525,9 +525,21 @@ def render_live_dashboard():
     # Dynamic calculation of total active market value
     active_value = 0.0
     for pos in active_positions:
-        p_info = market_prices.get(pos["symbol"], pos.get("entry_price", 1.0))
+        p_info = market_prices.get(pos.get("symbol"), pos.get("entry_price", 1.0))
         cur_price = p_info.get("price", pos.get("entry_price", 1.0)) if isinstance(p_info, dict) else float(p_info)
-        qty = pos.get("allocated_amount", 0.0) / pos.get("entry_price", 1.0) if pos.get("entry_price", 0) > 0 else 0
+        entry = float(pos.get("entry_price", cur_price))
+        
+        # Check if quantity is explicitly provided or needs to be derived
+        if pos.get("quantity") is not None:
+            qty = float(pos.get("quantity", 0))
+        else:
+            alloc = float(pos.get("allocated_amount", 0.0))
+            qty = alloc / entry if entry > 0 else 0.0
+
+        # RUNTIME SANITIZER: If raw USD was stored in quantity (qty * entry is abnormally high)
+        if qty * entry > 5000:
+            qty = qty / entry if entry > 0 else 1.0
+
         active_value += qty * cur_price
 
     total_equity = cash + active_value

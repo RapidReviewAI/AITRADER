@@ -183,7 +183,7 @@ Objective: Maximize $10,000 portfolio ROI in a strict 48-Hour Autonomous Trading
 - Evaluate all tickers in the batch prompt as potential BUY setups.
 - CRITICAL SELL DIRECTIVE: Also evaluate any currently open ACTIVE POSITIONS provided in the prompt. If technical momentum weakens, RSI turns overbought, or trend degrades, issue "EXECUTE_PAPER_SELL" for that symbol to secure profits or cut losses early!
 - Execute BUY/SELL trades ONLY when your technical analysis indicates high conviction (>75% confidence).
-- Keep rationales concise (1-4 words). Output strictly raw standard JSON array without markdown codeblock wrappers (```json), unescaped newlines, trailing commas, or syntax errors.
+- Keep technical rationales extremely concise (maximum 1-2 short bullet phrases / 2-3 short sentences total). Output strictly raw standard JSON array without markdown codeblock wrappers (```json), unescaped newlines, trailing commas, or syntax errors.
 
 Schema Example:
 [
@@ -392,7 +392,7 @@ def run_single_scan_pass(passed_api_key=None):
                             system_instruction=SYSTEM_INSTRUCTIONS,
                             response_mime_type="application/json",
                             temperature=0.1,
-                            max_output_tokens=4096
+                            max_output_tokens=1000
                         )
                     )
                     
@@ -447,26 +447,17 @@ def run_single_scan_pass(passed_api_key=None):
                 try:
                     signals = json.loads(cleaned_text)
                 except json.JSONDecodeError as decode_err:
-                    log_bot_event(f"⚠️ Initial JSON parse failed ({decode_err}). Attempting auto-repair...")
-                    repaired_text = cleaned_text
-                    last_complete_obj = repaired_text.rfind("}")
-                    if last_complete_obj != -1:
-                        repaired_text = repaired_text[:last_complete_obj+1]
-                        if not repaired_text.endswith("]"):
-                            repaired_text += "]"
-                        try:
-                            signals = json.loads(repaired_text)
-                        except Exception:
-                            signals = None
+                    log_bot_event(f"⚠️ JSON parse failed ({decode_err}). Payload truncated or malformed.")
+                    signals = None
 
-                # Fallback protection if JSON repair fails
+                # Fallback protection if JSON parsing or string termination fails
                 if not isinstance(signals, list):
-                    log_bot_event("⚠️ AI response JSON parsing failed completely. Using safe default hold signal.")
+                    log_bot_event("⚠️ Returning default safe schema: {'action': 'HOLD', 'confidence': 0, 'reason': 'JSON payload truncated'}")
                     signals = [{
                         "action": "HOLD",
                         "confidence_score": 0,
                         "symbol": "MARKET",
-                        "technical_rationale": ["AI response JSON parsing failed"]
+                        "technical_rationale": ["JSON payload truncated"]
                     }]
                     decisions_log = []
                     for s in signals:
